@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Tierra de Agaves | Móvil</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* --- CORE CSS PARA MÓVIL --- */
+        :root {
+            --primary: #388E3C;
+            --accent: #FFD54F;
+            --dark-panel: #0a100a; 
+            --text: #F1F8E9;
+            --collapsed-height: 120px; /* Altura fija del panel minimizado */
+        }
+
+        body { 
+            margin: 0; padding: 0; background: #000; 
+            font-family: 'Lato', sans-serif; 
+            overflow: hidden; 
+            /* Usamos dvh para ajustar perfecto a móviles con barra de navegación */
+            height: 100dvh; 
+            width: 100vw;
+            color: var(--text);
+        }
+
+        /* --- MAPA --- */
+        #map { 
+            position: absolute; top: 0; left: 0; width: 100%; 
+            height: 100%; /* El mapa ocupa todo el fondo */
+            z-index: 1; 
+        }
+        
+        /* Sombra superior para que se lea el texto sobre el mapa */
+        .vignette { 
+            position: absolute; top:0; left:0; width:100%; height: 40%; 
+            background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent); 
+            pointer-events: none; z-index: 2; 
+        }
+
+        /* --- UI SUPERIOR (HEADER) --- */
+        .top-ui {
+            position: absolute; top: 15px; left: 15px; right: 15px; z-index: 10;
+            display: flex; justify-content: space-between; align-items: flex-start;
+            pointer-events: none; 
+        }
+        
+        .season-btn {
+            pointer-events: auto; background: rgba(0,20,0,0.8); border: 1px solid var(--accent);
+            padding: 8px 15px; border-radius: 20px; font-size: 0.75rem; color: white; 
+            display: flex; align-items: center; gap: 6px; backdrop-filter: blur(4px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3); cursor: pointer;
+        }
+
+        .advc-counter {
+            pointer-events: auto; background: rgba(0,20,0,0.8); padding: 5px 12px; 
+            border-radius: 12px; border-right: 3px solid var(--primary); text-align: right;
+        }
+        .advc-val { font-family: 'Cinzel'; font-weight: bold; font-size: 1rem; color: var(--accent); display: block; }
+        .advc-lbl { font-size: 0.55rem; text-transform: uppercase; color: #aaa; }
+
+        /* --- PANEL UNIFICADO (DOCK INTELIGENTE) --- */
+        .smart-panel {
+            position: absolute; bottom: 0; left: 0; width: 100%;
+            height: var(--collapsed-height); /* Altura inicial pequeña */
+            background: var(--dark-panel);
+            border-top: 2px solid var(--accent);
+            border-top-left-radius: 20px; border-top-right-radius: 20px;
+            z-index: 50;
+            transition: height 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+            display: flex; flex-direction: column;
+            box-shadow: 0 -5px 30px rgba(0,0,0,0.9);
+        }
+
+        /* Clase para expandir el panel */
+        .smart-panel.expanded {
+            height: 60dvh; /* Crece casi hasta arriba */
+        }
+
+        /* 1. ZONA DE NAVEGACIÓN (HEADER DEL PANEL) */
+        .nav-header {
+            padding: 10px 15px; height: 120px; flex-shrink: 0;
+            display: flex; flex-direction: column; justify-content: space-between;
+        }
+
+        /* Drag Handle */
+        .handle-bar {
+            width: 40px; height: 4px; background: rgba(255,255,255,0.2); 
+            border-radius: 2px; margin: 0 auto; cursor: pointer;
+        }
+
+        /* Fila de Título y Flechas */
+        .title-row {
+            display: flex; justify-content: space-between; align-items: center; margin-top: 5px;
+        }
+        /* Flechas de navegación integradas */
+        .nav-arrow {
+            font-size: 1.8rem; color: #666; padding: 10px; cursor: pointer; transition: 0.2s;
+        }
+        .nav-arrow:active { color: var(--accent); transform: scale(1.1); }
+        
+        .loc-info { text-align: center; flex: 1; cursor: pointer; }
+        .loc-cat { font-size: 0.6rem; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; display: block; margin-bottom: 3px; }
+        .loc-name { font-family: 'Cinzel'; font-size: 1.3rem; color: white; margin: 0; line-height: 1.1; }
+
+        /* Fila de Audio y Expandir */
+        .action-row {
+            display: flex; align-items: center; justify-content: space-between; 
+            background: rgba(255,255,255,0.05); border-radius: 12px; padding: 8px 12px;
+            margin-top: 5px; border: 1px solid rgba(255,255,255,0.1); cursor: pointer;
+        }
+        
+        .audio-mini { display: flex; align-items: center; gap: 10px; flex: 1; }
+        .play-circle {
+            width: 30px; height: 30px; border-radius: 50%; background: var(--primary); 
+            color: white; display: flex; align-items: center; justify-content: center; font-size: 0.8rem;
+        }
+        .audio-txt { font-size: 0.8rem; color: #ccc; font-weight: bold; }
+        
+        .expand-btn { font-size: 0.7rem; color: var(--accent); text-transform: uppercase; font-weight: bold; display: flex; align-items: center; gap: 5px; }
+
+        /* 2. CONTENIDO DETALLADO (Oculto hasta expandir) */
+        .panel-content {
+            flex: 1; overflow-y: auto; padding: 0 25px 40px 25px;
+            opacity: 0; transition: opacity 0.2s; pointer-events: none;
+        }
+        .smart-panel.expanded .panel-content { opacity: 1; pointer-events: auto; }
+
+        .big-desc { font-size: 1rem; line-height: 1.6; color: #ddd; margin: 20px 0; border-left: 3px solid var(--primary); padding-left: 15px; }
+
+        /* Grid Estrategia */
+        .strat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 25px; }
+        .strat-item { background: rgba(255,255,255,0.05); padding: 10px 5px; border-radius: 8px; text-align: center; opacity: 0.4; }
+        .strat-item.active { opacity: 1; border: 1px solid var(--accent); background: rgba(255,215,0,0.1); }
+        .strat-icon { font-size: 1.2rem; color: var(--accent); display: block; margin-bottom: 5px; }
+        .strat-lbl { font-size: 0.5rem; text-transform: uppercase; display: block; }
+
+        /* Botones Grandes */
+        .btn-large {
+            width: 100%; padding: 15px; border-radius: 12px; border: 1px solid #555; background: transparent;
+            color: white; font-size: 0.9rem; margin-bottom: 10px; display: flex; justify-content: center; align-items: center; gap: 10px; cursor: pointer;
+        }
+        .btn-large.primary { background: linear-gradient(45deg, var(--primary), #1b5e20); border: none; font-weight: bold; box-shadow: 0 4px 15px rgba(46,125,50,0.4); }
+
+        /* --- MODALES --- */
+        .modal-overlay {
+            position: fixed; inset: 0; background: #000; z-index: 100;
+            transform: translateY(100%); transition: transform 0.3s; display: flex; flex-direction: column;
+        }
+        .modal-overlay.active { transform: translateY(0); }
+        
+        .modal-header {
+            padding: 15px 20px; display: flex; justify-content: space-between; align-items: center;
+            background: rgba(20,20,20,0.95); border-bottom: 1px solid #333;
+        }
+        .modal-body { flex: 1; overflow-y: auto; padding: 20px; text-align: center; }
+        
+        .evidence-img { width: 100%; border-radius: 10px; margin-bottom: 10px; border: 1px solid #333; }
+        .radar-circle { width: 250px; height: 250px; border: 2px solid var(--primary); border-radius: 50%; margin: 40px auto; position: relative; background: radial-gradient(circle, rgba(0,50,0,0.3), transparent); }
+        .radar-sweep { position: absolute; width: 50%; height: 2px; background: var(--accent); top: 50%; left: 50%; transform-origin: 0 0; animation: scan 2s infinite linear; }
+        @keyframes scan { to { transform: rotate(360deg); } }
+
+        /* SPLASH SCREEN */
+        #splash { position: fixed; inset: 0; z-index: 9999; background: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 1s; }
+        .splash-title { font-family: 'Cinzel'; font-size: 2.5rem; color: var(--accent); text-align: center; }
+        .btn-enter { padding: 15px 40px; border: 1px solid var(--accent); background: transparent; color: white; border-radius: 30px; margin-top: 20px; cursor: pointer; }
+
+    </style>
+</head>
+<body>
+
+    <div id="splash">
+        <h1 class="splash-title">TIERRA DE<br>AGAVES</h1>
+        <p style="color:#888; text-transform: uppercase; letter-spacing: 2px;">Trazabilidad Móvil</p>
+        <button class="btn-enter" onclick="startApp()">INICIAR</button>
+    </div>
+
+    <div id="map"></div>
+    <div class="vignette"></div>
+
+    <div class="top-ui">
+        <div class="season-btn" onclick="toggleSeason()">
+            <i class="fas fa-cloud-sun-rain" id="seasonIcon"></i> <span id="seasonText">Lluvias</span>
+        </div>
+        <div class="advc-counter">
+            <span class="advc-val" id="haCounter">0</span>
+            <span class="advc-lbl">Hectáreas</span>
+        </div>
+    </div>
+
+    <div class="smart-panel" id="mainPanel">
+        
+        <div class="nav-header">
+            <div class="handle-bar" onclick="togglePanel()"></div>
+            
+            <div class="title-row">
+                <i class="fas fa-chevron-left nav-arrow" onclick="prevPoint()"></i>
+                
+                <div class="loc-info" onclick="togglePanel()">
+                    <span class="loc-cat" id="lCat">CATEGORÍA</span>
+                    <h2 class="loc-name" id="lName">Nombre Lugar</h2>
+                </div>
+                
+                <i class="fas fa-chevron-right nav-arrow" onclick="nextPoint()"></i>
+            </div>
+
+            <div class="action-row" onclick="togglePanel()">
+                <div class="audio-mini" onclick="event.stopPropagation(); toggleAudio();">
+                    <div class="play-circle"><i class="fas fa-play" id="audioIcon"></i></div>
+                    <span class="audio-txt" id="lAudio">Historia Oral</span>
+                </div>
+                <div class="expand-btn">
+                    <span id="expandText">Detalles</span> <i class="fas fa-chevron-up" id="expandIcon"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel-content">
+            <p class="big-desc" id="lDesc">Descripción detallada...</p>
+
+            <div style="font-size:0.7rem; color:#888; margin-bottom:10px; text-transform:uppercase;">Estrategia Territorial:</div>
+            <div class="strat-grid">
+                <div class="strat-item" id="st-conserve"><i class="fas fa-shield-alt strat-icon"></i><span class="strat-lbl">Conservar</span></div>
+                <div class="strat-item" id="st-restore"><i class="fas fa-seedling strat-icon"></i><span class="strat-lbl">Restaurar</span></div>
+                <div class="strat-item" id="st-poly"><i class="fas fa-random strat-icon"></i><span class="strat-lbl">Policultivo</span></div>
+                <div class="strat-item" id="st-sus"><i class="fas fa-recycle strat-icon"></i><span class="strat-lbl">Sostenible</span></div>
+            </div>
+
+            <button class="btn-large primary" onclick="openRadar()">
+                <i class="fas fa-satellite-dish"></i> ESCANEAR BIODIVERSIDAD
+            </button>
+            
+            <button class="btn-large" onclick="openGallery()">
+                <i class="fas fa-camera"></i> VER EVIDENCIA VISUAL
+            </button>
+            
+            <div style="height: 40px;"></div> </div>
+    </div>
+
+    <div class="modal-overlay" id="radarModal">
+        <div class="modal-header">
+            <span style="color:var(--accent); font-family:'Cinzel'">RADAR BIO</span>
+            <i class="fas fa-times" style="color:white; font-size:1.5rem;" onclick="closeRadar()"></i>
+        </div>
+        <div class="modal-body">
+            <div class="radar-circle"><div class="radar-sweep"></div></div>
+            <h3 style="color:white; margin-top:20px;" id="radarStatus">BUSCANDO...</h3>
+            <p style="color:var(--primary)" id="radarResult">Monitoreo activo</p>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="galleryModal">
+        <div class="modal-header">
+            <span style="color:var(--accent); font-family:'Cinzel'">EVIDENCIA</span>
+            <i class="fas fa-times" style="color:white; font-size:1.5rem;" onclick="closeGallery()"></i>
+        </div>
+        <div class="modal-body" id="galleryContent">
+            </div>
+    </div>
+
+    <script>
+        // --- DATA ---
+        const locations = [
+            {
+                name: "Sta. María Zoquitlán", cat: "NÚCLEO ADVC",
+                coords: [16.565, -96.355],
+                desc: "Zona núcleo de conservación. Hogar del Jaguar y el Agave Tobalá Silvestre en su hábitat rocoso.",
+                audio: "El Rugido del Monte",
+                pillars: {conserve: true, restore: true, poly: false, sus: false},
+                species: "Jaguar (Panthera onca)",
+                media: [{src:'https://upload.wikimedia.org/wikipedia/commons/0/0a/Standing_jaguar.jpg', cap:'Jaguar captado por cámara trampa.'}]
+            },
+            {
+                name: "Chontecomatlán", cat: "RESTAURACIÓN",
+                coords: [16.355, -95.885],
+                desc: "Sierra Sur. Recuperación de suelos mediante reforestación para proteger al Venado Cola Blanca.",
+                audio: "Sembrando Agua",
+                pillars: {conserve: true, restore: true, poly: false, sus: false},
+                species: "Venado Cola Blanca",
+                media: [{src:'https://inaturalist-open-data.s3.amazonaws.com/photos/27986705/original.jpg', cap:'Venado Cola Blanca.'}]
+            },
+            {
+                name: "San Juan Lechigalla", cat: "POLICULTIVO",
+                coords: [16.635, -96.155],
+                desc: "Agroforestería. El Agave Espadín convive con maíz, frijol y árboles de Huizache.",
+                audio: "La Milpa Diversa",
+                pillars: {conserve: false, restore: true, poly: true, sus: true},
+                species: "Polinizadores (Abejas)",
+                media: [{src:'https://inaturalist-open-data.s3.amazonaws.com/photos/10972757/original.jpg', cap:'Cultivo de Agave con milpa.'}]
+            },
+            {
+                name: "San Antonio Chiguivana", cat: "CORREDOR BIO",
+                coords: [16.505, -96.055],
+                desc: "Protegemos a los murciélagos magueyeros permitiendo que los agaves florezcan (quiotes).",
+                audio: "Vuelo Nocturno",
+                pillars: {conserve: true, restore: false, poly: true, sus: true},
+                species: "Murciélago Magueyero",
+                media: [{src:'https://upload.wikimedia.org/wikipedia/commons/3/30/Leptonycteris_yerbabuenae_NPS.jpg', cap:'Murciélago polinizando.'}]
+            },
+            {
+                name: "Santo Tomás Teipan", cat: "GOBERNANZA",
+                coords: [16.282, -95.955],
+                desc: "Territorio Chontal. Acuerdos comunitarios para la protección de fauna como el Tejón.",
+                audio: "La Voz de la Asamblea",
+                pillars: {conserve: true, restore: false, poly: false, sus: true},
+                species: "Tejón (Coatí)",
+                media: [{src:'https://inaturalist-open-data.s3.amazonaws.com/photos/16381026/original.jpg', cap:'Tejón (Coatí) en libertad.'}]
+            },
+            {
+                name: "San Bartolo Yautepec", cat: "PRODUCCIÓN LIMPIA",
+                coords: [16.450, -96.000],
+                desc: "Tratamiento de residuos en palenques para proteger el Río Yautepec y la Iguana Negra.",
+                audio: "Río Sano",
+                pillars: {conserve: false, restore: false, poly: false, sus: true},
+                species: "Iguana Negra",
+                media: [{src:'https://inaturalist-open-data.s3.amazonaws.com/photos/59596636/original.jpg', cap:'Iguana Negra.'}]
+            },
+            {
+                name: "S. Bartolomé Quialana", cat: "CULTURA Y GÉNERO",
+                coords: [16.905, -96.505],
+                desc: "Mujeres zapotecas recolectan y protegen semillas de plantas medicinales.",
+                audio: "Sabiduría Femenina",
+                pillars: {conserve: true, restore: true, poly: true, sus: true},
+                species: "Cempasúchil Silvestre",
+                media: [{src:'https://inaturalist-open-data.s3.amazonaws.com/photos/56723223/original.jpg', cap:'Cempasúchil silvestre.'}]
+            },
+            {
+                name: "Santa María El Tule", cat: "SÍMBOLO",
+                coords: [17.045, -96.630],
+                desc: "El Ahuehuete milenario es el embajador del agua y la biodiversidad.",
+                audio: "El Abuelo Árbol",
+                pillars: {conserve: true, restore: false, poly: false, sus: false},
+                species: "Garza Blanca",
+                media: [{src:'https://upload.wikimedia.org/wikipedia/commons/a/a2/El_Tule_Oaxaca.jpg', cap:'Árbol del Tule.'}]
+            },
+            {
+                name: "San Amatlán", cat: "MONITOREO",
+                coords: [16.325, -96.485],
+                desc: "Fototrampeo comunitario para registro de fauna esquiva.",
+                audio: "Ojos del Monte",
+                pillars: {conserve: true, restore: true, poly: false, sus: true},
+                species: "Pecarí de Collar",
+                media: [{src:'https://inaturalist-open-data.s3.amazonaws.com/photos/7382206/original.jpg', cap:'Pecarí de Collar.'}]
+            }
+        ];
+
+        // --- MAPA ---
+        const map = L.map('map', { zoomControl: false }).setView([16.6, -96.2], 9);
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 18 }).addTo(map);
+
+        let currentIndex = 0;
+        let isExpanded = false;
+        const panel = document.getElementById('mainPanel');
+
+        function startApp() {
+            document.getElementById('splash').style.opacity = 0;
+            setTimeout(() => { document.getElementById('splash').style.display = 'none'; }, 1000);
+            updateUI(0);
+            animateHectares();
+        }
+
+        // --- LÓGICA DE PANEL ---
+        function togglePanel() {
+            isExpanded = !isExpanded;
+            const icon = document.getElementById('expandIcon');
+            const text = document.getElementById('expandText');
+            
+            if (isExpanded) {
+                panel.classList.add('expanded');
+                icon.className = "fas fa-chevron-down";
+                text.innerText = "Cerrar";
+            } else {
+                panel.classList.remove('expanded');
+                icon.className = "fas fa-chevron-up";
+                text.innerText = "Ver Detalles";
+                document.querySelector('.panel-content').scrollTop = 0;
+            }
+        }
+
+        // Minimizar al tocar el mapa
+        map.on('click', () => {
+            if (isExpanded) togglePanel();
+        });
+
+        // --- NAVEGACIÓN ---
+        function updateUI(index) {
+            currentIndex = index;
+            const data = locations[index];
+
+            // Vuelo mapa
+            map.flyTo(data.coords, 13, { duration: 1.5 });
+
+            // Minimizar panel
+            if (isExpanded) togglePanel();
+
+            // Textos
+            document.getElementById('lCat').innerText = data.category;
+            document.getElementById('lName').innerText = data.name;
+            document.getElementById('lDesc').innerText = data.desc;
+            document.getElementById('lAudio').innerText = data.audio;
+
+            // Pilares
+            updatePillar('st-conserve', data.pillars.conserve);
+            updatePillar('st-restore', data.pillars.restore);
+            updatePillar('st-poly', data.pillars.poly);
+            updatePillar('st-sus', data.pillars.sus);
+
+            // Galería
+            const gal = document.getElementById('galleryContent');
+            gal.innerHTML = '';
+            data.media.forEach(m => {
+                gal.innerHTML += `<img src="${m.src}" class="evidence-img"><div style="font-size:0.8rem; color:#ccc; margin-bottom:20px;">${m.cap}</div>`;
+            });
+        }
+
+        function updatePillar(id, active) {
+            const el = document.getElementById(id);
+            if (active) el.classList.add('active'); else el.classList.remove('active');
+        }
+
+        function nextPoint() {
+            let n = currentIndex + 1 >= locations.length ? 0 : currentIndex + 1;
+            updateUI(n);
+        }
+        function prevPoint() {
+            let n = currentIndex - 1 < 0 ? locations.length - 1 : currentIndex - 1;
+            updateUI(n);
+        }
+
+        // --- EXTRAS ---
+        let isDry = false;
+        function toggleSeason() {
+            isDry = !isDry;
+            if(isDry) {
+                document.body.classList.add('season-dry');
+                document.getElementById('seasonText').innerText = "Secas";
+                document.getElementById('seasonIcon').className = "fas fa-sun";
+            } else {
+                document.body.classList.remove('season-dry');
+                document.getElementById('seasonText').innerText = "Lluvias";
+                document.getElementById('seasonIcon').className = "fas fa-cloud-sun-rain";
+            }
+        }
+
+        let playing = false;
+        function toggleAudio() {
+            playing = !playing;
+            document.getElementById('audioIcon').className = playing ? "fas fa-pause" : "fas fa-play";
+        }
+
+        function openRadar() {
+            document.getElementById('radarModal').classList.add('active');
+            setTimeout(() => {
+                document.getElementById('radarStatus').innerText = "¡DETECTADO!";
+                document.getElementById('radarStatus').style.color = "var(--accent)";
+                document.getElementById('radarResult').innerText = locations[currentIndex].species;
+            }, 2000);
+        }
+        function closeRadar() { document.getElementById('radarModal').classList.remove('active'); }
+        function openGallery() { document.getElementById('galleryModal').classList.add('active'); }
+        function closeGallery() { document.getElementById('galleryModal').classList.remove('active'); }
+
+        function animateHectares() {
+            let count = 0;
+            const el = document.getElementById('haCounter');
+            const timer = setInterval(() => {
+                count += 100;
+                el.innerText = count.toLocaleString();
+                if(count >= 9000) clearInterval(timer);
+            }, 30);
+        }
+
+        // Marcadores
+        locations.forEach((loc, idx) => {
+            const icon = L.divIcon({
+                className: 'pin',
+                html: `<div style="width:14px; height:14px; background:var(--accent); border-radius:50%; box-shadow:0 0 10px black; border:2px solid white;"></div>`
+            });
+            L.marker(loc.coords, {icon: icon}).addTo(map).on('click', () => updateUI(idx));
+        });
+
+    </script>
+</body>
+</html>
