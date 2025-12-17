@@ -3,489 +3,511 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Tierra de Agaves | Móvil</title>
+    <title>Tierra de Agaves | Trazabilidad Viva</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
-
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
 
     <style>
-        /* --- CORE CSS PARA MÓVIL --- */
+        /* --- CORE VISUAL SYSTEM --- */
         :root {
-            --primary: #388E3C;
-            --accent: #FFD54F;
-            --dark-panel: #0a100a; 
-            --text: #F1F8E9;
-            --collapsed-height: 120px; /* Altura fija del panel minimizado */
+            --primary: #4CAF50; /* Verde Ecología */
+            --secondary: #81C784;
+            --accent: #FFD700; /* Oro Agave */
+            --danger: #FF5252;
+            --dark-bg: #050505;
+            --glass: rgba(10, 20, 10, 0.85);
+            --border: rgba(255, 255, 255, 0.15);
+            --text-main: #E0E0E0;
+            --panel-collapsed: 140px;
         }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
         body { 
-            margin: 0; padding: 0; background: #000; 
-            font-family: 'Lato', sans-serif; 
+            margin: 0; padding: 0; 
+            background: var(--dark-bg); 
+            font-family: 'Rajdhani', sans-serif; 
             overflow: hidden; 
-            /* Usamos dvh para ajustar perfecto a móviles con barra de navegación */
-            height: 100dvh; 
-            width: 100vw;
-            color: var(--text);
+            height: 100dvh; width: 100vw;
+            color: var(--text-main);
         }
 
-        /* --- MAPA --- */
-        #map { 
-            position: absolute; top: 0; left: 0; width: 100%; 
-            height: 100%; /* El mapa ocupa todo el fondo */
-            z-index: 1; 
-        }
+        /* --- MAPA & AMBIENTE --- */
+        #map-container { position: absolute; inset: 0; z-index: 1; transition: filter 1s ease; }
+        #map { width: 100%; height: 100%; }
         
-        /* Sombra superior para que se lea el texto sobre el mapa */
-        .vignette { 
-            position: absolute; top:0; left:0; width:100%; height: 40%; 
-            background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent); 
-            pointer-events: none; z-index: 2; 
+        /* Efectos de Estación (CSS Filters son más rápidos que recargar tiles) */
+        .season-dry #map-container { filter: sepia(0.6) contrast(1.1) brightness(0.9); }
+        .season-wet #map-container { filter: sepia(0) contrast(1.0) brightness(1.0) saturate(1.2); }
+
+        .vignette {
+            position: absolute; inset: 0; pointer-events: none; z-index: 2;
+            background: radial-gradient(circle, transparent 40%, rgba(0,0,0,0.8) 100%);
         }
 
-        /* --- UI SUPERIOR (HEADER) --- */
+        /* --- ESCÁNER AR (SIMULADO) --- */
+        #ar-overlay {
+            position: fixed; inset: 0; z-index: 9999; background: #000;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+        }
+        .scanner-reticle {
+            width: 250px; height: 250px; border: 2px solid var(--primary);
+            position: relative; border-radius: 20px;
+            box-shadow: 0 0 20px rgba(76, 175, 80, 0.5);
+        }
+        .scanner-line {
+            width: 100%; height: 2px; background: var(--accent);
+            position: absolute; top: 0;
+            animation: scanMove 2s infinite linear;
+            box-shadow: 0 0 10px var(--accent);
+        }
+        .scan-data {
+            margin-top: 20px; font-family: 'Cinzel'; color: var(--accent);
+            text-align: center; opacity: 0;
+        }
+        @keyframes scanMove { 0% {top:0} 50% {top:100%} 100% {top:0} }
+
+        /* --- UI FLOTANTE SUPERIOR --- */
         .top-ui {
-            position: absolute; top: 15px; left: 15px; right: 15px; z-index: 10;
+            position: absolute; top: 0; left: 0; right: 0; padding: 20px; z-index: 10;
             display: flex; justify-content: space-between; align-items: flex-start;
-            pointer-events: none; 
+            pointer-events: none;
         }
-        
-        .season-btn {
-            pointer-events: auto; background: rgba(0,20,0,0.8); border: 1px solid var(--accent);
-            padding: 8px 15px; border-radius: 20px; font-size: 0.75rem; color: white; 
-            display: flex; align-items: center; gap: 6px; backdrop-filter: blur(4px);
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3); cursor: pointer;
+        .ui-btn {
+            pointer-events: auto; background: var(--glass); 
+            border: 1px solid var(--border); backdrop-filter: blur(10px);
+            padding: 8px 16px; border-radius: 30px; 
+            color: white; font-weight: 600; font-size: 0.8rem;
+            display: flex; align-items: center; gap: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3); cursor: pointer;
+            transition: all 0.3s;
         }
+        .ui-btn:active { transform: scale(0.95); }
+        .ui-btn.active { border-color: var(--accent); color: var(--accent); }
 
-        .advc-counter {
-            pointer-events: auto; background: rgba(0,20,0,0.8); padding: 5px 12px; 
-            border-radius: 12px; border-right: 3px solid var(--primary); text-align: right;
+        .stat-badge {
+            text-align: right; background: rgba(0,0,0,0.6); 
+            padding: 8px 12px; border-radius: 12px; border-right: 3px solid var(--accent);
+            pointer-events: auto;
         }
-        .advc-val { font-family: 'Cinzel'; font-weight: bold; font-size: 1rem; color: var(--accent); display: block; }
-        .advc-lbl { font-size: 0.55rem; text-transform: uppercase; color: #aaa; }
+        .stat-val { font-size: 1.2rem; font-weight: 700; color: white; display: block; font-family: 'Cinzel'; }
+        .stat-lbl { font-size: 0.6rem; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
 
-        /* --- PANEL UNIFICADO (DOCK INTELIGENTE) --- */
-        .smart-panel {
+        /* --- SMART DOCK (PANEL INFERIOR) --- */
+        .smart-dock {
             position: absolute; bottom: 0; left: 0; width: 100%;
-            height: var(--collapsed-height); /* Altura inicial pequeña */
-            background: var(--dark-panel);
-            border-top: 2px solid var(--accent);
-            border-top-left-radius: 20px; border-top-right-radius: 20px;
+            height: var(--panel-collapsed);
+            background: var(--glass);
+            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            border-top: 1px solid var(--border);
+            border-radius: 24px 24px 0 0;
             z-index: 50;
-            transition: height 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+            transition: height 0.5s cubic-bezier(0.19, 1, 0.22, 1);
             display: flex; flex-direction: column;
-            box-shadow: 0 -5px 30px rgba(0,0,0,0.9);
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
         }
-
-        /* Clase para expandir el panel */
-        .smart-panel.expanded {
-            height: 60dvh; /* Crece casi hasta arriba */
-        }
-
-        /* 1. ZONA DE NAVEGACIÓN (HEADER DEL PANEL) */
-        .nav-header {
-            padding: 10px 15px; height: 120px; flex-shrink: 0;
-            display: flex; flex-direction: column; justify-content: space-between;
-        }
+        .smart-dock.expanded { height: 75dvh; }
 
         /* Drag Handle */
-        .handle-bar {
-            width: 40px; height: 4px; background: rgba(255,255,255,0.2); 
-            border-radius: 2px; margin: 0 auto; cursor: pointer;
+        .dock-handle {
+            width: 100%; height: 20px; display: flex; justify-content: center; align-items: center;
+            cursor: pointer;
         }
+        .bar { width: 40px; height: 4px; background: rgba(255,255,255,0.3); border-radius: 2px; }
 
-        /* Fila de Título y Flechas */
-        .title-row {
-            display: flex; justify-content: space-between; align-items: center; margin-top: 5px;
+        /* Header del Panel */
+        .dock-header {
+            padding: 0 20px; flex-shrink: 0;
         }
-        /* Flechas de navegación integradas */
-        .nav-arrow {
-            font-size: 1.8rem; color: #666; padding: 10px; cursor: pointer; transition: 0.2s;
+        .dock-nav {
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;
         }
-        .nav-arrow:active { color: var(--accent); transform: scale(1.1); }
+        .nav-btn { font-size: 1.5rem; padding: 10px; color: #666; transition: 0.2s; cursor: pointer; }
+        .nav-btn:hover, .nav-btn:active { color: var(--accent); }
         
-        .loc-info { text-align: center; flex: 1; cursor: pointer; }
-        .loc-cat { font-size: 0.6rem; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; display: block; margin-bottom: 3px; }
-        .loc-name { font-family: 'Cinzel'; font-size: 1.3rem; color: white; margin: 0; line-height: 1.1; }
+        .loc-title { text-align: center; flex: 1; }
+        .loc-cat { font-size: 0.7rem; color: var(--primary); letter-spacing: 2px; text-transform: uppercase; display: block; font-weight: 700; }
+        .loc-name { font-family: 'Cinzel'; font-size: 1.4rem; margin: 0; color: white; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
 
-        /* Fila de Audio y Expandir */
-        .action-row {
-            display: flex; align-items: center; justify-content: space-between; 
-            background: rgba(255,255,255,0.05); border-radius: 12px; padding: 8px 12px;
-            margin-top: 5px; border: 1px solid rgba(255,255,255,0.1); cursor: pointer;
+        /* Contenido Scrolleable */
+        .dock-content {
+            flex: 1; overflow-y: auto; padding: 10px 20px 40px 20px;
+            opacity: 0; transition: opacity 0.3s; pointer-events: none;
         }
+        .smart-dock.expanded .dock-content { opacity: 1; pointer-events: auto; }
+
+        /* Tarjetas de Datos */
+        .data-card {
+            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 16px; padding: 15px; margin-bottom: 15px;
+        }
+        .card-title { font-size: 0.8rem; color: var(--accent); text-transform: uppercase; margin-bottom: 10px; display: flex; justify-content: space-between; }
         
-        .audio-mini { display: flex; align-items: center; gap: 10px; flex: 1; }
-        .play-circle {
-            width: 30px; height: 30px; border-radius: 50%; background: var(--primary); 
-            color: white; display: flex; align-items: center; justify-content: center; font-size: 0.8rem;
+        /* Grid de Indicadores */
+        .pill-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        .pill-item { 
+            background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px; 
+            display: flex; align-items: center; gap: 8px; font-size: 0.8rem;
         }
-        .audio-txt { font-size: 0.8rem; color: #ccc; font-weight: bold; }
+        .pill-icon { width: 24px; height: 24px; border-radius: 50%; background: #333; display: flex; justify-content: center; align-items: center; color: var(--accent); font-size: 0.7rem; }
+
+        /* COMPARADOR SLIDER (Monocultivo vs Policultivo) */
+        .comparison-container {
+            position: relative; width: 100%; height: 200px;
+            border-radius: 12px; overflow: hidden; margin: 20px 0;
+            border: 1px solid var(--border);
+        }
+        .img-comp { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+        .img-overlay {
+            position: absolute; top: 0; left: 0; width: 50%; height: 100%;
+            overflow: hidden; border-right: 2px solid white; box-shadow: 5px 0 15px rgba(0,0,0,0.5);
+            transition: width 0.1s;
+        }
+        .comp-label {
+            position: absolute; bottom: 10px; padding: 4px 8px; background: rgba(0,0,0,0.7);
+            color: white; font-size: 0.7rem; border-radius: 4px; pointer-events: none;
+        }
+        .comp-label.left { left: 10px; color: var(--danger); }
+        .comp-label.right { right: 10px; color: var(--primary); }
         
-        .expand-btn { font-size: 0.7rem; color: var(--accent); text-transform: uppercase; font-weight: bold; display: flex; align-items: center; gap: 5px; }
-
-        /* 2. CONTENIDO DETALLADO (Oculto hasta expandir) */
-        .panel-content {
-            flex: 1; overflow-y: auto; padding: 0 25px 40px 25px;
-            opacity: 0; transition: opacity 0.2s; pointer-events: none;
+        /* Slider Handle invisble para el touch */
+        .slider-range {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            opacity: 0; cursor: ew-resize; z-index: 10;
         }
-        .smart-panel.expanded .panel-content { opacity: 1; pointer-events: auto; }
 
-        .big-desc { font-size: 1rem; line-height: 1.6; color: #ddd; margin: 20px 0; border-left: 3px solid var(--primary); padding-left: 15px; }
-
-        /* Grid Estrategia */
-        .strat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 25px; }
-        .strat-item { background: rgba(255,255,255,0.05); padding: 10px 5px; border-radius: 8px; text-align: center; opacity: 0.4; }
-        .strat-item.active { opacity: 1; border: 1px solid var(--accent); background: rgba(255,215,0,0.1); }
-        .strat-icon { font-size: 1.2rem; color: var(--accent); display: block; margin-bottom: 5px; }
-        .strat-lbl { font-size: 0.5rem; text-transform: uppercase; display: block; }
-
-        /* Botones Grandes */
-        .btn-large {
-            width: 100%; padding: 15px; border-radius: 12px; border: 1px solid #555; background: transparent;
-            color: white; font-size: 0.9rem; margin-bottom: 10px; display: flex; justify-content: center; align-items: center; gap: 10px; cursor: pointer;
+        /* Botones de Acción */
+        .btn-action {
+            width: 100%; padding: 14px; border: none; border-radius: 12px;
+            font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 1rem;
+            display: flex; justify-content: center; align-items: center; gap: 10px;
+            cursor: pointer; margin-bottom: 10px;
         }
-        .btn-large.primary { background: linear-gradient(45deg, var(--primary), #1b5e20); border: none; font-weight: bold; box-shadow: 0 4px 15px rgba(46,125,50,0.4); }
-
-        /* --- MODALES --- */
-        .modal-overlay {
-            position: fixed; inset: 0; background: #000; z-index: 100;
-            transform: translateY(100%); transition: transform 0.3s; display: flex; flex-direction: column;
+        .btn-primary { 
+            background: linear-gradient(135deg, var(--primary), #2E7D32); 
+            color: white; box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
         }
-        .modal-overlay.active { transform: translateY(0); }
+        .btn-secondary { background: rgba(255,255,255,0.1); color: white; border: 1px solid var(--border); }
+
+        /* MODALES */
+        .modal {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 100;
+            display: none; flex-direction: column; opacity: 0; transition: opacity 0.3s;
+        }
+        .modal.active { display: flex; opacity: 1; }
+        .modal-content { flex: 1; padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
         
-        .modal-header {
-            padding: 15px 20px; display: flex; justify-content: space-between; align-items: center;
-            background: rgba(20,20,20,0.95); border-bottom: 1px solid #333;
+        /* Radar Animado */
+        .radar-box {
+            width: 280px; height: 280px; border: 1px solid var(--primary); border-radius: 50%;
+            position: relative; background: radial-gradient(rgba(0,50,0,0.2), transparent 70%);
+            display: flex; justify-content: center; align-items: center;
         }
-        .modal-body { flex: 1; overflow-y: auto; padding: 20px; text-align: center; }
-        
-        .evidence-img { width: 100%; border-radius: 10px; margin-bottom: 10px; border: 1px solid #333; }
-        .radar-circle { width: 250px; height: 250px; border: 2px solid var(--primary); border-radius: 50%; margin: 40px auto; position: relative; background: radial-gradient(circle, rgba(0,50,0,0.3), transparent); }
-        .radar-sweep { position: absolute; width: 50%; height: 2px; background: var(--accent); top: 50%; left: 50%; transform-origin: 0 0; animation: scan 2s infinite linear; }
-        @keyframes scan { to { transform: rotate(360deg); } }
+        .radar-box::after {
+            content:''; position: absolute; inset: 10px; border: 1px dashed rgba(76,175,80,0.3); border-radius: 50%;
+        }
+        .radar-scan {
+            position: absolute; width: 50%; height: 2px; background: linear-gradient(90deg, transparent, var(--primary));
+            top: 50%; left: 50%; transform-origin: 0 0; animation: radarSpin 3s infinite linear;
+        }
+        @keyframes radarSpin { 100% { transform: rotate(360deg); } }
 
-        /* SPLASH SCREEN */
-        #splash { position: fixed; inset: 0; z-index: 9999; background: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 1s; }
-        .splash-title { font-family: 'Cinzel'; font-size: 2.5rem; color: var(--accent); text-align: center; }
-        .btn-enter { padding: 15px 40px; border: 1px solid var(--accent); background: transparent; color: white; border-radius: 30px; margin-top: 20px; cursor: pointer; }
-
+        /* Utility */
+        .hidden { display: none; }
     </style>
 </head>
-<body>
+<body class="season-wet">
 
-    <div id="splash">
-        <h1 class="splash-title">TIERRA DE<br>AGAVES</h1>
-        <p style="color:#888; text-transform: uppercase; letter-spacing: 2px;">Trazabilidad Móvil</p>
-        <button class="btn-enter" onclick="startApp()">INICIAR</button>
+    <div id="ar-overlay">
+        <div class="scanner-reticle">
+            <div class="scanner-line"></div>
+        </div>
+        <div class="scan-data" id="scan-text">
+            <p>DETECTANDO LOTE...</p>
+        </div>
     </div>
 
-    <div id="map"></div>
+    <div id="map-container">
+        <div id="map"></div>
+    </div>
     <div class="vignette"></div>
 
     <div class="top-ui">
-        <div class="season-btn" onclick="toggleSeason()">
-            <i class="fas fa-cloud-sun-rain" id="seasonIcon"></i> <span id="seasonText">Lluvias</span>
-        </div>
-        <div class="advc-counter">
-            <span class="advc-val" id="haCounter">0</span>
-            <span class="advc-lbl">Hectáreas</span>
-        </div>
-    </div>
-
-    <div class="smart-panel" id="mainPanel">
+        <button class="ui-btn" id="season-btn" onclick="toggleSeason()">
+            <i class="fas fa-cloud-showers-heavy" id="season-icon"></i> 
+            <span id="season-txt">LLUVIAS</span>
+        </button>
         
-        <div class="nav-header">
-            <div class="handle-bar" onclick="togglePanel()"></div>
-            
-            <div class="title-row">
-                <i class="fas fa-chevron-left nav-arrow" onclick="prevPoint()"></i>
-                
-                <div class="loc-info" onclick="togglePanel()">
-                    <span class="loc-cat" id="lCat">CATEGORÍA</span>
-                    <h2 class="loc-name" id="lName">Nombre Lugar</h2>
-                </div>
-                
-                <i class="fas fa-chevron-right nav-arrow" onclick="nextPoint()"></i>
-            </div>
-
-            <div class="action-row" onclick="togglePanel()">
-                <div class="audio-mini" onclick="event.stopPropagation(); toggleAudio();">
-                    <div class="play-circle"><i class="fas fa-play" id="audioIcon"></i></div>
-                    <span class="audio-txt" id="lAudio">Historia Oral</span>
-                </div>
-                <div class="expand-btn">
-                    <span id="expandText">Detalles</span> <i class="fas fa-chevron-up" id="expandIcon"></i>
-                </div>
-            </div>
-        </div>
-
-        <div class="panel-content">
-            <p class="big-desc" id="lDesc">Descripción detallada...</p>
-
-            <div style="font-size:0.7rem; color:#888; margin-bottom:10px; text-transform:uppercase;">Estrategia Territorial:</div>
-            <div class="strat-grid">
-                <div class="strat-item" id="st-conserve"><i class="fas fa-shield-alt strat-icon"></i><span class="strat-lbl">Conservar</span></div>
-                <div class="strat-item" id="st-restore"><i class="fas fa-seedling strat-icon"></i><span class="strat-lbl">Restaurar</span></div>
-                <div class="strat-item" id="st-poly"><i class="fas fa-random strat-icon"></i><span class="strat-lbl">Policultivo</span></div>
-                <div class="strat-item" id="st-sus"><i class="fas fa-recycle strat-icon"></i><span class="strat-lbl">Sostenible</span></div>
-            </div>
-
-            <button class="btn-large primary" onclick="openRadar()">
-                <i class="fas fa-satellite-dish"></i> ESCANEAR BIODIVERSIDAD
-            </button>
-            
-            <button class="btn-large" onclick="openGallery()">
-                <i class="fas fa-camera"></i> VER EVIDENCIA VISUAL
-            </button>
-            
-            <div style="height: 40px;"></div> </div>
-    </div>
-
-    <div class="modal-overlay" id="radarModal">
-        <div class="modal-header">
-            <span style="color:var(--accent); font-family:'Cinzel'">RADAR BIO</span>
-            <i class="fas fa-times" style="color:white; font-size:1.5rem;" onclick="closeRadar()"></i>
-        </div>
-        <div class="modal-body">
-            <div class="radar-circle"><div class="radar-sweep"></div></div>
-            <h3 style="color:white; margin-top:20px;" id="radarStatus">BUSCANDO...</h3>
-            <p style="color:var(--primary)" id="radarResult">Monitoreo activo</p>
+        <div class="stat-badge">
+            <span class="stat-val counter" data-target="1150">0</span>
+            <span class="stat-lbl">Hectáreas Protegidas</span>
         </div>
     </div>
 
-    <div class="modal-overlay" id="galleryModal">
-        <div class="modal-header">
-            <span style="color:var(--accent); font-family:'Cinzel'">EVIDENCIA</span>
-            <i class="fas fa-times" style="color:white; font-size:1.5rem;" onclick="closeGallery()"></i>
+    <div class="smart-dock" id="dock">
+        <div class="dock-handle" onclick="toggleDock()">
+            <div class="bar"></div>
         </div>
-        <div class="modal-body" id="galleryContent">
+
+        <div class="dock-header">
+            <div class="dock-nav">
+                <i class="fas fa-chevron-left nav-btn" onclick="changeLocation(-1)"></i>
+                <div class="loc-title" onclick="toggleDock()">
+                    <span class="loc-cat" id="d-cat">CATEGORÍA</span>
+                    <h2 class="loc-name" id="d-name">Nombre</h2>
+                </div>
+                <i class="fas fa-chevron-right nav-btn" onclick="changeLocation(1)"></i>
             </div>
+            <div style="display:flex; align-items:center; gap:10px; padding-bottom:15px; border-bottom:1px solid rgba(255,255,255,0.1); cursor:pointer;" onclick="playAudio()">
+                <div style="width:30px; height:30px; border-radius:50%; background:var(--accent); display:flex; justify-content:center; align-items:center; color:black;">
+                    <i class="fas fa-play" id="play-icon"></i>
+                </div>
+                <div style="font-size:0.8rem; color:#ccc;">Historia Oral: <strong style="color:white;" id="d-audio">Título Audio</strong></div>
+            </div>
+        </div>
+
+        <div class="dock-content">
+            
+            <p style="line-height:1.6; color:#ccc; margin-top:0;" id="d-desc">Descripción...</p>
+
+            <div class="data-card">
+                <div class="card-title"><span>Signos Vitales</span> <i class="fas fa-heartbeat"></i></div>
+                <div class="pill-grid">
+                    <div class="pill-item"><div class="pill-icon"><i class="fas fa-tint"></i></div> <span id="val-water">Infiltración Alta</span></div>
+                    <div class="pill-item"><div class="pill-icon"><i class="fas fa-leaf"></i></div> <span id="val-veg">Cobertura 85%</span></div>
+                    <div class="pill-item"><div class="pill-icon"><i class="fas fa-paw"></i></div> <span id="val-fauna">Fauna Activa</span></div>
+                    <div class="pill-item"><div class="pill-icon"><i class="fas fa-bug"></i></div> <span id="val-soil">Suelo Vivo</span></div>
+                </div>
+            </div>
+
+            <div class="card-title" style="margin-top:20px;"><span>IMPACTO VISUAL</span> <i class="fas fa-adjust"></i></div>
+            <div class="comparison-container">
+                <img src="https://images.unsplash.com/photo-1598512752271-33f913a5af13?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80" class="img-comp" alt="Policultivo"> <div class="img-overlay" id="comp-overlay">
+                    <img src="https://images.unsplash.com/photo-1508108712903-49b7efd9c36d?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80" class="img-comp" style="width:200%; max-width:none;" alt="Monocultivo"> <div class="comp-label left">MONOCULTIVO</div>
+                </div>
+                <div class="comp-label right">POLICULTIVO (ACTUAL)</div>
+                <input type="range" min="0" max="100" value="50" class="slider-range" oninput="updateComparison(this.value)">
+            </div>
+
+            <button class="btn-action btn-primary" onclick="openRadar()">
+                <i class="fas fa-satellite-dish"></i> INICIAR ESCANEO BIO
+            </button>
+            <button class="btn-action btn-secondary" onclick="alert('Descargando certificado blockchain...')">
+                <i class="fas fa-file-contract"></i> VER CERTIFICADO
+            </button>
+        </div>
+    </div>
+
+    <div class="modal" id="radar-modal">
+        <div class="modal-content">
+            <h2 style="font-family:'Cinzel'; color:var(--primary);">MONITOREO SATELITAL</h2>
+            <div class="radar-box">
+                <div class="radar-scan"></div>
+                <i class="fas fa-paw" style="position:absolute; top:30%; left:60%; color:var(--text-main); font-size:1.2rem; opacity:0;" id="radar-blip"></i>
+            </div>
+            <div style="margin-top:20px; text-align:center;">
+                <p style="color:var(--secondary); font-size:1.2rem; font-weight:bold;" id="radar-status">ESCANANDO...</p>
+                <div style="font-size:0.8rem; color:#888;">Frecuencia: 142.5 Mhz | Cobertura: 100%</div>
+            </div>
+            <button class="btn-action btn-secondary" style="margin-top:30px; width:auto; padding:10px 40px;" onclick="closeRadar()">CERRAR</button>
+        </div>
     </div>
 
     <script>
-        // --- DATA ---
+        // --- DATASET: TIERRA DE AGAVES ---
         const locations = [
             {
-                name: "Sta. María Zoquitlán", cat: "NÚCLEO ADVC",
-                coords: [16.565, -96.355],
-                desc: "Zona núcleo de conservación. Hogar del Jaguar y el Agave Tobalá Silvestre en su hábitat rocoso.",
-                audio: "El Rugido del Monte",
-                pillars: {conserve: true, restore: true, poly: false, sus: false},
-                species: "Jaguar (Panthera onca)",
-                media: [{src:'https://upload.wikimedia.org/wikipedia/commons/0/0a/Standing_jaguar.jpg', cap:'Jaguar captado por cámara trampa.'}]
-            },
-            {
-                name: "Chontecomatlán", cat: "RESTAURACIÓN",
-                coords: [16.355, -95.885],
-                desc: "Sierra Sur. Recuperación de suelos mediante reforestación para proteger al Venado Cola Blanca.",
-                audio: "Sembrando Agua",
-                pillars: {conserve: true, restore: true, poly: false, sus: false},
-                species: "Venado Cola Blanca",
-                media: [{src:'https://inaturalist-open-data.s3.amazonaws.com/photos/27986705/original.jpg', cap:'Venado Cola Blanca.'}]
-            },
-            {
-                name: "San Juan Lechigalla", cat: "POLICULTIVO",
+                name: "San Juan Lechigalla",
+                cat: "AGROFORESTERÍA",
                 coords: [16.635, -96.155],
-                desc: "Agroforestería. El Agave Espadín convive con maíz, frijol y árboles de Huizache.",
+                desc: "Aquí el Agave Espadín no crece solo. Convive con maíz, frijol y árboles de Huizache que fijan nitrógeno al suelo, evitando la erosión típica del monocultivo.",
                 audio: "La Milpa Diversa",
-                pillars: {conserve: false, restore: true, poly: true, sus: true},
-                species: "Polinizadores (Abejas)",
-                media: [{src:'https://inaturalist-open-data.s3.amazonaws.com/photos/10972757/original.jpg', cap:'Cultivo de Agave con milpa.'}]
+                stats: { water: "Retención Media", veg: "Cobertura 65%", fauna: "Polinizadores", soil: "Nutrientes Altos" }
             },
             {
-                name: "San Antonio Chiguivana", cat: "CORREDOR BIO",
-                coords: [16.505, -96.055],
-                desc: "Protegemos a los murciélagos magueyeros permitiendo que los agaves florezcan (quiotes).",
-                audio: "Vuelo Nocturno",
-                pillars: {conserve: true, restore: false, poly: true, sus: true},
-                species: "Murciélago Magueyero",
-                media: [{src:'https://upload.wikimedia.org/wikipedia/commons/3/30/Leptonycteris_yerbabuenae_NPS.jpg', cap:'Murciélago polinizando.'}]
+                name: "Sta. María Zoquitlán",
+                cat: "ZONA NÚCLEO",
+                coords: [16.565, -96.355],
+                desc: "Santuario del Jaguar. 300 hectáreas de selva baja caducifolia estrictamente protegidas. Prohibida la extracción, permitida la admiración.",
+                audio: "El Rugido del Monte",
+                stats: { water: "Manantiales", veg: "Cobertura 98%", fauna: "Jaguar / Puma", soil: "Intacto" }
             },
             {
-                name: "Santo Tomás Teipan", cat: "GOBERNANZA",
-                coords: [16.282, -95.955],
-                desc: "Territorio Chontal. Acuerdos comunitarios para la protección de fauna como el Tejón.",
-                audio: "La Voz de la Asamblea",
-                pillars: {conserve: true, restore: false, poly: false, sus: true},
-                species: "Tejón (Coatí)",
-                media: [{src:'https://inaturalist-open-data.s3.amazonaws.com/photos/16381026/original.jpg', cap:'Tejón (Coatí) en libertad.'}]
-            },
-            {
-                name: "San Bartolo Yautepec", cat: "PRODUCCIÓN LIMPIA",
+                name: "San Bartolo Yautepec",
+                cat: "PRODUCCIÓN LIMPIA",
                 coords: [16.450, -96.000],
-                desc: "Tratamiento de residuos en palenques para proteger el Río Yautepec y la Iguana Negra.",
-                audio: "Río Sano",
-                pillars: {conserve: false, restore: false, poly: false, sus: true},
-                species: "Iguana Negra",
-                media: [{src:'https://inaturalist-open-data.s3.amazonaws.com/photos/59596636/original.jpg', cap:'Iguana Negra.'}]
-            },
-            {
-                name: "S. Bartolomé Quialana", cat: "CULTURA Y GÉNERO",
-                coords: [16.905, -96.505],
-                desc: "Mujeres zapotecas recolectan y protegen semillas de plantas medicinales.",
-                audio: "Sabiduría Femenina",
-                pillars: {conserve: true, restore: true, poly: true, sus: true},
-                species: "Cempasúchil Silvestre",
-                media: [{src:'https://inaturalist-open-data.s3.amazonaws.com/photos/56723223/original.jpg', cap:'Cempasúchil silvestre.'}]
-            },
-            {
-                name: "Santa María El Tule", cat: "SÍMBOLO",
-                coords: [17.045, -96.630],
-                desc: "El Ahuehuete milenario es el embajador del agua y la biodiversidad.",
-                audio: "El Abuelo Árbol",
-                pillars: {conserve: true, restore: false, poly: false, sus: false},
-                species: "Garza Blanca",
-                media: [{src:'https://upload.wikimedia.org/wikipedia/commons/a/a2/El_Tule_Oaxaca.jpg', cap:'Árbol del Tule.'}]
-            },
-            {
-                name: "San Amatlán", cat: "MONITOREO",
-                coords: [16.325, -96.485],
-                desc: "Fototrampeo comunitario para registro de fauna esquiva.",
-                audio: "Ojos del Monte",
-                pillars: {conserve: true, restore: true, poly: false, sus: true},
-                species: "Pecarí de Collar",
-                media: [{src:'https://inaturalist-open-data.s3.amazonaws.com/photos/7382206/original.jpg', cap:'Pecarí de Collar.'}]
+                desc: "El vinazas (residuos líquidos) no van al río. Se tratan en biodigestores para generar gas que alimenta el siguiente horno de cocción.",
+                audio: "Río Cristalino",
+                stats: { water: "Tratamiento 100%", veg: "Ribereña", fauna: "Iguana Negra", soil: "Compostaje" }
             }
         ];
 
-        // --- MAPA ---
-        const map = L.map('map', { zoomControl: false }).setView([16.6, -96.2], 9);
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 18 }).addTo(map);
+        let currentIdx = 0;
+        let isWetSeason = true;
+        let isDockOpen = false;
 
-        let currentIndex = 0;
-        let isExpanded = false;
-        const panel = document.getElementById('mainPanel');
+        // --- MAPA LEAFLET ---
+        const map = L.map('map', { 
+            zoomControl: false, 
+            attributionControl: false,
+            zoomSnap: 0.5 
+        }).setView([16.6, -96.2], 10);
 
-        function startApp() {
-            document.getElementById('splash').style.opacity = 0;
-            setTimeout(() => { document.getElementById('splash').style.display = 'none'; }, 1000);
-            updateUI(0);
-            animateHectares();
-        }
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 18
+        }).addTo(map);
 
-        // --- LÓGICA DE PANEL ---
-        function togglePanel() {
-            isExpanded = !isExpanded;
-            const icon = document.getElementById('expandIcon');
-            const text = document.getElementById('expandText');
+        // Marcadores personalizados
+        locations.forEach((loc, idx) => {
+            const iconHtml = `<div style="width:16px; height:16px; background:var(--accent); border-radius:50%; box-shadow:0 0 0 4px rgba(255, 215, 0, 0.3); border:2px solid #000;"></div>`;
+            const icon = L.divIcon({ className: 'custom-pin', html: iconHtml });
             
-            if (isExpanded) {
-                panel.classList.add('expanded');
-                icon.className = "fas fa-chevron-down";
-                text.innerText = "Cerrar";
-            } else {
-                panel.classList.remove('expanded');
-                icon.className = "fas fa-chevron-up";
-                text.innerText = "Ver Detalles";
-                document.querySelector('.panel-content').scrollTop = 0;
-            }
-        }
-
-        // Minimizar al tocar el mapa
-        map.on('click', () => {
-            if (isExpanded) togglePanel();
+            L.marker(loc.coords, {icon: icon}).addTo(map).on('click', () => {
+                updateContent(idx);
+                openDock();
+            });
         });
 
-        // --- NAVEGACIÓN ---
-        function updateUI(index) {
-            currentIndex = index;
-            const data = locations[index];
+        // --- FUNCIONES DE UI ---
 
-            // Vuelo mapa
-            map.flyTo(data.coords, 13, { duration: 1.5 });
+        // 1. Init Sequence (Fake Scanner)
+        window.onload = () => {
+            const tl = gsap.timeline();
+            
+            // Texto dinámico
+            setTimeout(() => { document.getElementById('scan-text').innerHTML = "<p>BOTELLA: TOBALÁ<br>LOTE: BTS-042</p>"; document.getElementById('scan-text').style.opacity = 1; }, 1000);
+            setTimeout(() => { document.getElementById('scan-text').innerHTML = "<p style='color:white'>ORIGEN CONFIRMADO<br>OAXACA, MÉXICO</p>"; }, 2500);
 
-            // Minimizar panel
-            if (isExpanded) togglePanel();
+            // Transición a Mapa
+            tl.to("#ar-overlay", { duration: 0.5, delay: 3.5, opacity: 0, display: "none" })
+              .from("#map-container", { duration: 1.5, scale: 1.2, ease: "power2.out" }, "-=0.2")
+              .from(".smart-dock", { duration: 0.8, y: 100, opacity: 0 }, "-=1")
+              .add(() => animateCounter());
+            
+            updateContent(0);
+        };
 
-            // Textos
-            document.getElementById('lCat').innerText = data.category;
-            document.getElementById('lName').innerText = data.name;
-            document.getElementById('lDesc').innerText = data.desc;
-            document.getElementById('lAudio').innerText = data.audio;
-
-            // Pilares
-            updatePillar('st-conserve', data.pillars.conserve);
-            updatePillar('st-restore', data.pillars.restore);
-            updatePillar('st-poly', data.pillars.poly);
-            updatePillar('st-sus', data.pillars.sus);
-
-            // Galería
-            const gal = document.getElementById('galleryContent');
-            gal.innerHTML = '';
-            data.media.forEach(m => {
-                gal.innerHTML += `<img src="${m.src}" class="evidence-img"><div style="font-size:0.8rem; color:#ccc; margin-bottom:20px;">${m.cap}</div>`;
-            });
+        // 2. Control del Dock
+        function toggleDock() {
+            const dock = document.getElementById('dock');
+            isDockOpen = !isDockOpen;
+            if(isDockOpen) dock.classList.add('expanded');
+            else dock.classList.remove('expanded');
+        }
+        function openDock() {
+            if(!isDockOpen) toggleDock();
         }
 
-        function updatePillar(id, active) {
-            const el = document.getElementById(id);
-            if (active) el.classList.add('active'); else el.classList.remove('active');
+        // 3. Actualizar Contenido
+        function updateContent(idx) {
+            currentIdx = idx;
+            const data = locations[idx];
+            
+            // Animación de textos
+            gsap.fromTo("#d-name", {opacity:0, y:10}, {opacity:1, y:0, duration:0.4});
+            
+            document.getElementById('d-cat').innerText = data.cat;
+            document.getElementById('d-name').innerText = data.name;
+            document.getElementById('d-desc').innerText = data.desc;
+            document.getElementById('d-audio').innerText = data.audio;
+            
+            // Stats
+            document.getElementById('val-water').innerText = data.stats.water;
+            document.getElementById('val-veg').innerText = data.stats.veg;
+            document.getElementById('val-fauna').innerText = data.stats.fauna;
+            document.getElementById('val-soil').innerText = data.stats.soil;
+
+            // Vuelo del mapa
+            map.flyTo(data.coords, 14, { duration: 2, ease: "power2.inOut" });
         }
 
-        function nextPoint() {
-            let n = currentIndex + 1 >= locations.length ? 0 : currentIndex + 1;
-            updateUI(n);
-        }
-        function prevPoint() {
-            let n = currentIndex - 1 < 0 ? locations.length - 1 : currentIndex - 1;
-            updateUI(n);
+        function changeLocation(dir) {
+            let next = currentIdx + dir;
+            if(next >= locations.length) next = 0;
+            if(next < 0) next = locations.length - 1;
+            updateContent(next);
         }
 
-        // --- EXTRAS ---
-        let isDry = false;
+        // 4. Temporada (Filtros CSS)
         function toggleSeason() {
-            isDry = !isDry;
-            if(isDry) {
-                document.body.classList.add('season-dry');
-                document.getElementById('seasonText').innerText = "Secas";
-                document.getElementById('seasonIcon').className = "fas fa-sun";
+            isWetSeason = !isWetSeason;
+            const btn = document.getElementById('season-btn');
+            const icon = document.getElementById('season-icon');
+            const txt = document.getElementById('season-txt');
+            
+            if(isWetSeason) {
+                document.body.className = "season-wet";
+                icon.className = "fas fa-cloud-showers-heavy";
+                txt.innerText = "LLUVIAS";
+                btn.classList.remove("active");
             } else {
-                document.body.classList.remove('season-dry');
-                document.getElementById('seasonText').innerText = "Lluvias";
-                document.getElementById('seasonIcon').className = "fas fa-cloud-sun-rain";
+                document.body.className = "season-dry";
+                icon.className = "fas fa-sun";
+                txt.innerText = "SECAS";
+                btn.classList.add("active");
+                // Haptic feedback simulado
+                if(navigator.vibrate) navigator.vibrate(50);
             }
         }
 
-        let playing = false;
-        function toggleAudio() {
-            playing = !playing;
-            document.getElementById('audioIcon').className = playing ? "fas fa-pause" : "fas fa-play";
+        // 5. Comparador Slider
+        function updateComparison(val) {
+            const overlay = document.getElementById('comp-overlay');
+            overlay.style.width = val + "%";
         }
 
+        // 6. Radar Logica
         function openRadar() {
-            document.getElementById('radarModal').classList.add('active');
+            const modal = document.getElementById('radar-modal');
+            modal.classList.add('active');
+            
+            // Simular hallazgo
             setTimeout(() => {
-                document.getElementById('radarStatus').innerText = "¡DETECTADO!";
-                document.getElementById('radarStatus').style.color = "var(--accent)";
-                document.getElementById('radarResult').innerText = locations[currentIndex].species;
+                const blip = document.getElementById('radar-blip');
+                const status = document.getElementById('radar-status');
+                gsap.to(blip, { opacity: 1, scale: 1.5, duration: 0.2, yoyo: true, repeat: 3 });
+                status.innerText = "¡FAUNA DETECTADA!";
+                status.style.color = "var(--accent)";
+                if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
             }, 2000);
         }
-        function closeRadar() { document.getElementById('radarModal').classList.remove('active'); }
-        function openGallery() { document.getElementById('galleryModal').classList.add('active'); }
-        function closeGallery() { document.getElementById('galleryModal').classList.remove('active'); }
-
-        function animateHectares() {
-            let count = 0;
-            const el = document.getElementById('haCounter');
-            const timer = setInterval(() => {
-                count += 100;
-                el.innerText = count.toLocaleString();
-                if(count >= 9000) clearInterval(timer);
-            }, 30);
+        function closeRadar() {
+            document.getElementById('radar-modal').classList.remove('active');
+            document.getElementById('radar-status').innerText = "ESCANANDO...";
+            document.getElementById('radar-status').style.color = "var(--secondary)";
+            document.getElementById('radar-blip').style.opacity = 0;
         }
 
-        // Marcadores
-        locations.forEach((loc, idx) => {
-            const icon = L.divIcon({
-                className: 'pin',
-                html: `<div style="width:14px; height:14px; background:var(--accent); border-radius:50%; box-shadow:0 0 10px black; border:2px solid white;"></div>`
+        // 7. Animación de Números
+        function animateCounter() {
+            const counters = document.querySelectorAll('.counter');
+            counters.forEach(counter => {
+                const target = +counter.getAttribute('data-target');
+                const updateCount = () => {
+                    const count = +counter.innerText;
+                    const inc = target / 100;
+                    if (count < target) {
+                        counter.innerText = Math.ceil(count + inc);
+                        setTimeout(updateCount, 20);
+                    } else {
+                        counter.innerText = target.toLocaleString();
+                    }
+                };
+                updateCount();
             });
-            L.marker(loc.coords, {icon: icon}).addTo(map).on('click', () => updateUI(idx));
-        });
+        }
+        
+        // Audio Toggle simple
+        let isPlaying = false;
+        function playAudio() {
+            isPlaying = !isPlaying;
+            const icon = document.getElementById('play-icon');
+            icon.className = isPlaying ? "fas fa-pause" : "fas fa-play";
+        }
 
     </script>
 </body>
