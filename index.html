@@ -3,510 +3,565 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Tierra de Agaves | Trazabilidad Viva</title>
+    <title>Red Biocultural | Oaxaca Monitor</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Rajdhani:wght@300;500;600;700&display=swap" rel="stylesheet">
 
     <style>
-        /* --- CORE VISUAL SYSTEM --- */
+        /* --- ESTILOS VISUALES --- */
         :root {
-            --primary: #4CAF50; /* Verde Ecología */
-            --secondary: #81C784;
-            --accent: #FFD700; /* Oro Agave */
-            --danger: #FF5252;
+            --eco-green: #2ecc71;       /* Naturaleza / Restauración */
+            --water-blue: #3498db;      /* Agua */
+            --agave-gold: #f1c40f;      /* Maestros / Identidad */
+            --earth-orange: #e67e22;    /* Tierra / Voces */
+            --trust-cyan: #00bcd4;      /* Verificación / Confianza */
             --dark-bg: #050505;
-            --glass: rgba(10, 20, 10, 0.85);
-            --border: rgba(255, 255, 255, 0.15);
-            --text-main: #E0E0E0;
-            --panel-collapsed: 140px;
+            --panel-glass: rgba(12, 12, 12, 0.96);
+            --border-dim: rgba(255, 255, 255, 0.15);
         }
 
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { margin: 0; background: var(--dark-bg); font-family: 'Rajdhani', sans-serif; overflow: hidden; height: 100dvh; color: #ecf0f1; }
 
-        body { 
-            margin: 0; padding: 0; 
-            background: var(--dark-bg); 
-            font-family: 'Rajdhani', sans-serif; 
-            overflow: hidden; 
-            height: 100dvh; width: 100vw;
-            color: var(--text-main);
+        /* MAPA */
+        #map { width: 100%; height: 100%; background: #080808; z-index: 1; }
+        .scan-lines {
+            position: absolute; inset: 0; pointer-events: none; z-index: 5;
+            background: repeating-linear-gradient(0deg, rgba(0,0,0,0.05), rgba(0,0,0,0.05) 1px, transparent 1px, transparent 3px);
         }
 
-        /* --- MAPA & AMBIENTE --- */
-        #map-container { position: absolute; inset: 0; z-index: 1; transition: filter 1s ease; }
-        #map { width: 100%; height: 100%; }
-        
-        /* Efectos de Estación (CSS Filters son más rápidos que recargar tiles) */
-        .season-dry #map-container { filter: sepia(0.6) contrast(1.1) brightness(0.9); }
-        .season-wet #map-container { filter: sepia(0) contrast(1.0) brightness(1.0) saturate(1.2); }
+        /* TRAZABILIDAD VISUAL (Línea Animada) */
+        .trace-line {
+            stroke: var(--agave-gold); stroke-width: 3; stroke-dasharray: 10, 10;
+            filter: drop-shadow(0 0 8px rgba(241, 196, 15, 0.6)); animation: dash 40s linear infinite;
+        }
+        @keyframes dash { to { stroke-dashoffset: -1000; } }
 
-        .vignette {
-            position: absolute; inset: 0; pointer-events: none; z-index: 2;
-            background: radial-gradient(circle, transparent 40%, rgba(0,0,0,0.8) 100%);
-        }
-
-        /* --- ESCÁNER AR (SIMULADO) --- */
-        #ar-overlay {
-            position: fixed; inset: 0; z-index: 9999; background: #000;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-        }
-        .scanner-reticle {
-            width: 250px; height: 250px; border: 2px solid var(--primary);
-            position: relative; border-radius: 20px;
-            box-shadow: 0 0 20px rgba(76, 175, 80, 0.5);
-        }
-        .scanner-line {
-            width: 100%; height: 2px; background: var(--accent);
-            position: absolute; top: 0;
-            animation: scanMove 2s infinite linear;
-            box-shadow: 0 0 10px var(--accent);
-        }
-        .scan-data {
-            margin-top: 20px; font-family: 'Cinzel'; color: var(--accent);
-            text-align: center; opacity: 0;
-        }
-        @keyframes scanMove { 0% {top:0} 50% {top:100%} 100% {top:0} }
-
-        /* --- UI FLOTANTE SUPERIOR --- */
-        .top-ui {
+        /* HUD SUPERIOR */
+        .top-hud {
             position: absolute; top: 0; left: 0; right: 0; padding: 20px; z-index: 10;
-            display: flex; justify-content: space-between; align-items: flex-start;
-            pointer-events: none;
+            display: flex; justify-content: space-between; 
+            background: linear-gradient(to bottom, rgba(0,0,0,0.9), transparent); pointer-events: none;
         }
-        .ui-btn {
-            pointer-events: auto; background: var(--glass); 
-            border: 1px solid var(--border); backdrop-filter: blur(10px);
-            padding: 8px 16px; border-radius: 30px; 
-            color: white; font-weight: 600; font-size: 0.8rem;
-            display: flex; align-items: center; gap: 8px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3); cursor: pointer;
-            transition: all 0.3s;
-        }
-        .ui-btn:active { transform: scale(0.95); }
-        .ui-btn.active { border-color: var(--accent); color: var(--accent); }
+        .hud-content { pointer-events: auto; }
+        .title h1 { margin: 0; font-family: 'Cinzel'; color: var(--agave-gold); font-size: 1.3rem; letter-spacing: 2px; }
+        .title span { font-size: 0.7rem; color: #bdc3c7; text-transform: uppercase; letter-spacing: 1px; }
+        .kpi-box { text-align: right; }
+        .kpi-val { font-size: 1.6rem; font-weight: bold; line-height: 1; color: white; }
+        .kpi-lbl { font-size: 0.65rem; color: var(--eco-green); letter-spacing: 1px; }
 
-        .stat-badge {
-            text-align: right; background: rgba(0,0,0,0.6); 
-            padding: 8px 12px; border-radius: 12px; border-right: 3px solid var(--accent);
-            pointer-events: auto;
+        /* CONTROLES FLOTANTES (DOCK DERECHO) */
+        .controls-dock {
+            position: absolute; right: 15px; top: 90px; z-index: 20;
+            display: flex; flex-direction: column; gap: 12px;
         }
-        .stat-val { font-size: 1.2rem; font-weight: 700; color: white; display: block; font-family: 'Cinzel'; }
-        .stat-lbl { font-size: 0.6rem; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
-
-        /* --- SMART DOCK (PANEL INFERIOR) --- */
-        .smart-dock {
-            position: absolute; bottom: 0; left: 0; width: 100%;
-            height: var(--panel-collapsed);
-            background: var(--glass);
-            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-            border-top: 1px solid var(--border);
-            border-radius: 24px 24px 0 0;
-            z-index: 50;
-            transition: height 0.5s cubic-bezier(0.19, 1, 0.22, 1);
-            display: flex; flex-direction: column;
-            box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
+        .ctrl-btn {
+            width: 46px; height: 46px; background: rgba(0,0,0,0.8);
+            border: 1px solid var(--border-dim); border-radius: 12px;
+            color: #bdc3c7; display: flex; justify-content: center; align-items: center;
+            cursor: pointer; transition: 0.3s; backdrop-filter: blur(8px); position: relative;
         }
-        .smart-dock.expanded { height: 75dvh; }
-
-        /* Drag Handle */
-        .dock-handle {
-            width: 100%; height: 20px; display: flex; justify-content: center; align-items: center;
-            cursor: pointer;
-        }
-        .bar { width: 40px; height: 4px; background: rgba(255,255,255,0.3); border-radius: 2px; }
-
-        /* Header del Panel */
-        .dock-header {
-            padding: 0 20px; flex-shrink: 0;
-        }
-        .dock-nav {
-            display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;
-        }
-        .nav-btn { font-size: 1.5rem; padding: 10px; color: #666; transition: 0.2s; cursor: pointer; }
-        .nav-btn:hover, .nav-btn:active { color: var(--accent); }
+        .ctrl-btn:hover { background: rgba(255,255,255,0.1); color: white; transform: translateX(-3px); }
+        .ctrl-btn.active { border-color: currentColor; background: rgba(0,0,0,0.95); box-shadow: 0 0 15px currentColor; color: white; }
         
-        .loc-title { text-align: center; flex: 1; }
-        .loc-cat { font-size: 0.7rem; color: var(--primary); letter-spacing: 2px; text-transform: uppercase; display: block; font-weight: 700; }
-        .loc-name { font-family: 'Cinzel'; font-size: 1.4rem; margin: 0; color: white; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
-
-        /* Contenido Scrolleable */
-        .dock-content {
-            flex: 1; overflow-y: auto; padding: 10px 20px 40px 20px;
-            opacity: 0; transition: opacity 0.3s; pointer-events: none;
-        }
-        .smart-dock.expanded .dock-content { opacity: 1; pointer-events: auto; }
-
-        /* Tarjetas de Datos */
-        .data-card {
-            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);
-            border-radius: 16px; padding: 15px; margin-bottom: 15px;
-        }
-        .card-title { font-size: 0.8rem; color: var(--accent); text-transform: uppercase; margin-bottom: 10px; display: flex; justify-content: space-between; }
+        .trace-btn { border-color: var(--agave-gold) !important; color: var(--agave-gold) !important; animation: pulseGold 3s infinite; }
+        @keyframes pulseGold { 0% { box-shadow: 0 0 0 rgba(241, 196, 15, 0.1); } 50% { box-shadow: 0 0 15px rgba(241, 196, 15, 0.4); } 100% { box-shadow: 0 0 0 rgba(241, 196, 15, 0.1); } }
         
-        /* Grid de Indicadores */
-        .pill-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-        .pill-item { 
-            background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px; 
-            display: flex; align-items: center; gap: 8px; font-size: 0.8rem;
-        }
-        .pill-icon { width: 24px; height: 24px; border-radius: 50%; background: #333; display: flex; justify-content: center; align-items: center; color: var(--accent); font-size: 0.7rem; }
+        .badge { position: absolute; top: -6px; right: -6px; font-size: 0.6rem; padding: 2px 5px; border-radius: 8px; font-weight: bold; color: black; box-shadow: 0 2px 5px black; }
 
-        /* COMPARADOR SLIDER (Monocultivo vs Policultivo) */
-        .comparison-container {
-            position: relative; width: 100%; height: 200px;
-            border-radius: 12px; overflow: hidden; margin: 20px 0;
-            border: 1px solid var(--border);
+        /* BOTÓN DE ESCANEO CENTRAL */
+        .scan-trigger {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.85); border: 1px solid var(--agave-gold); color: var(--agave-gold);
+            padding: 10px 25px; border-radius: 30px; font-size: 0.85rem; font-weight: bold; letter-spacing: 1px;
+            cursor: pointer; z-index: 50; display: flex; align-items: center; gap: 10px;
+            box-shadow: 0 0 20px rgba(241, 196, 15, 0.2); pointer-events: auto; transition: 0.3s;
         }
-        .img-comp { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
-        .img-overlay {
-            position: absolute; top: 0; left: 0; width: 50%; height: 100%;
-            overflow: hidden; border-right: 2px solid white; box-shadow: 5px 0 15px rgba(0,0,0,0.5);
-            transition: width 0.1s;
+        .scan-trigger:hover { background: var(--agave-gold); color: black; box-shadow: 0 0 30px rgba(241, 196, 15, 0.6); }
+
+        /* OVERLAY: IDENTIDAD DE LA BOTELLA */
+        .bottle-overlay {
+            position: absolute; top: 80px; left: 20px; width: 300px; background: rgba(10,12,10,0.98);
+            border: 1px solid var(--agave-gold); border-radius: 16px; padding: 20px; z-index: 25;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.9); backdrop-filter: blur(15px);
+            display: none; animation: slideInLeft 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
         }
-        .comp-label {
-            position: absolute; bottom: 10px; padding: 4px 8px; background: rgba(0,0,0,0.7);
-            color: white; font-size: 0.7rem; border-radius: 4px; pointer-events: none;
-        }
-        .comp-label.left { left: 10px; color: var(--danger); }
-        .comp-label.right { right: 10px; color: var(--primary); }
+        @keyframes slideInLeft { from { opacity:0; transform:translateX(-30px); } to { opacity:1; transform:translateX(0); } }
         
-        /* Slider Handle invisble para el touch */
-        .slider-range {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            opacity: 0; cursor: ew-resize; z-index: 10;
-        }
-
-        /* Botones de Acción */
-        .btn-action {
-            width: 100%; padding: 14px; border: none; border-radius: 12px;
-            font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 1rem;
-            display: flex; justify-content: center; align-items: center; gap: 10px;
-            cursor: pointer; margin-bottom: 10px;
-        }
-        .btn-primary { 
-            background: linear-gradient(135deg, var(--primary), #2E7D32); 
-            color: white; box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
-        }
-        .btn-secondary { background: rgba(255,255,255,0.1); color: white; border: 1px solid var(--border); }
-
-        /* MODALES */
-        .modal {
-            position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 100;
-            display: none; flex-direction: column; opacity: 0; transition: opacity 0.3s;
-        }
-        .modal.active { display: flex; opacity: 1; }
-        .modal-content { flex: 1; padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .bottle-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        .bottle-tag { font-size: 0.7rem; background: var(--agave-gold); color: black; padding: 4px 8px; border-radius: 4px; font-weight: 800; letter-spacing: 1px; }
+        .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
+        .data-label { font-size: 0.65rem; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 3px; }
+        .data-val { font-size: 0.95rem; color: white; font-weight: 700; }
         
-        /* Radar Animado */
-        .radar-box {
-            width: 280px; height: 280px; border: 1px solid var(--primary); border-radius: 50%;
-            position: relative; background: radial-gradient(rgba(0,50,0,0.2), transparent 70%);
-            display: flex; justify-content: center; align-items: center;
+        .trust-block { 
+            border: 1px dashed var(--trust-cyan); background: rgba(0, 188, 212, 0.08); 
+            padding: 12px; border-radius: 8px; margin-top: 15px; text-align: center; 
         }
-        .radar-box::after {
-            content:''; position: absolute; inset: 10px; border: 1px dashed rgba(76,175,80,0.3); border-radius: 50%;
-        }
-        .radar-scan {
-            position: absolute; width: 50%; height: 2px; background: linear-gradient(90deg, transparent, var(--primary));
-            top: 50%; left: 50%; transform-origin: 0 0; animation: radarSpin 3s infinite linear;
-        }
-        @keyframes radarSpin { 100% { transform: rotate(360deg); } }
+        .trust-verified { color: var(--trust-cyan); font-weight: bold; font-size: 0.8rem; display: flex; justify-content: center; gap: 6px; margin-bottom: 5px; }
+        .trust-hash { font-family: monospace; font-size: 0.7rem; color: #888; word-break: break-all; }
 
-        /* Utility */
-        .hidden { display: none; }
+        /* PANEL INFERIOR */
+        .panel {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 50vh; 
+            background: var(--panel-glass); border-top: 2px solid var(--earth-orange);
+            z-index: 30; transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+            display: flex; flex-direction: column; border-radius: 24px 24px 0 0;
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.8);
+        }
+        .panel.closed { transform: translateY(calc(50vh - 55px)); }
+
+        .panel-header {
+            padding: 15px 25px; display: flex; justify-content: space-between; align-items: center;
+            cursor: pointer; border-bottom: 1px solid var(--border-dim);
+        }
+        .panel-tabs { display: flex; border-bottom: 1px solid var(--border-dim); overflow-x: auto; scrollbar-width: none; }
+        .tab { 
+            flex: 1; min-width: 90px; padding: 15px 10px; text-align: center; font-size: 0.75rem; 
+            cursor: pointer; color: #666; font-weight: 700; letter-spacing: 1px; white-space: nowrap; transition: 0.3s;
+        }
+        .tab:hover { color: #ccc; }
+        .tab.active { color: var(--earth-orange); background: rgba(230, 126, 34, 0.08); border-bottom: 2px solid var(--earth-orange); }
+
+        .viewport { flex: 1; overflow-y: auto; padding: 25px; position: relative; }
+        .view { display: none; animation: fadeIn 0.4s ease-out; }
+        .view.active { display: block; }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+
+        /* MÓDULO: TRAZABILIDAD (TIMELINE) */
+        .timeline-wrapper { padding-left: 20px; border-left: 2px solid #333; margin-left: 10px; }
+        .tl-item { margin-bottom: 25px; position: relative; cursor: pointer; transition: 0.3s; padding-left: 15px; }
+        .tl-item:hover { transform: translateX(5px); }
+        .tl-dot { 
+            position: absolute; left: -27px; top: 0; width: 12px; height: 12px; border-radius: 50%; 
+            background: var(--dark-bg); border: 2px solid var(--agave-gold); box-shadow: 0 0 10px var(--agave-gold);
+        }
+        .tl-date { font-size: 0.7rem; color: var(--agave-gold); font-weight: bold; }
+        .tl-title { font-size: 1rem; font-weight: 700; color: white; margin: 2px 0; }
+        .tl-desc { font-size: 0.85rem; color: #999; line-height: 1.4; }
+
+        /* MÓDULO: SOSTENIBILIDAD */
+        .metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+        .metric-card { background: rgba(255,255,255,0.03); border: 1px solid var(--border-dim); padding: 15px; border-radius: 12px; text-align: center; transition: 0.3s; }
+        .metric-card:hover { background: rgba(255,255,255,0.06); transform: translateY(-2px); }
+        .metric-icon { font-size: 1.5rem; color: var(--eco-green); margin-bottom: 8px; }
+        .metric-val { font-size: 1.2rem; font-weight: 800; color: white; }
+        .metric-lbl { font-size: 0.65rem; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+
+        /* PINES DEL MAPA */
+        .custom-pin { transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1); }
+        .custom-pin:hover { transform: scale(1.3); z-index: 9999 !important; }
+        .pin-body {
+            width: 100%; height: 100%; border-radius: 50%; display: flex; justify-content: center; align-items: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.8); border: 1px solid rgba(255,255,255,0.9); font-size: 0.6rem; color: white;
+        }
+        /* Colores Específicos */
+        .p-voice { background: var(--earth-orange); } /* Voces */
+        .p-bio { background: var(--eco-green); } /* Fauna/Flora */
+        .p-maestro { background: var(--agave-gold); color: black; border-color: #000; font-weight:bold; } /* Maestros */
+        .p-town { width: 14px; height: 14px; border: 2px solid white; background: #2c3e50; } /* Pueblos */
+        .p-restore { background: var(--trust-cyan); color: black; border-color: white; } /* Restauración */
+
+        /* FEED */
+        .feed-item { margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; gap: 12px; }
+        .feed-icon { margin-top: 3px; font-size: 1rem; }
+        .feed-content { font-size: 0.9rem; line-height: 1.5; color: #ccc; }
+        .feed-hl { font-weight: 700; color: white; }
+
     </style>
 </head>
-<body class="season-wet">
+<body>
 
-    <div id="ar-overlay">
-        <div class="scanner-reticle">
-            <div class="scanner-line"></div>
-        </div>
-        <div class="scan-data" id="scan-text">
-            <p>DETECTANDO LOTE...</p>
-        </div>
+    <div class="scan-trigger" onclick="activateBottleView()">
+        <i class="fas fa-qrcode"></i> ESCANEAR LOTE
     </div>
 
-    <div id="map-container">
-        <div id="map"></div>
-    </div>
-    <div class="vignette"></div>
-
-    <div class="top-ui">
-        <button class="ui-btn" id="season-btn" onclick="toggleSeason()">
-            <i class="fas fa-cloud-showers-heavy" id="season-icon"></i> 
-            <span id="season-txt">LLUVIAS</span>
-        </button>
+    <div class="bottle-overlay" id="bottleIdentity">
+        <div class="bottle-header">
+            <span class="bottle-tag">LOTE: OAX-2025-A</span>
+            <i class="fas fa-times" style="cursor:pointer; color:#666;" onclick="closeBottleView()"></i>
+        </div>
+        <h2 style="font-family:'Cinzel'; margin:0 0 5px 0; color:var(--agave-gold); font-size:1.4rem;">TOBALÁ SILVESTRE</h2>
+        <div style="font-size:0.8rem; color:#aaa; margin-bottom:20px; font-style:italic;">"El espíritu del monte en una gota de tiempo."</div>
         
-        <div class="stat-badge">
-            <span class="stat-val counter" data-target="1150">0</span>
-            <span class="stat-lbl">Hectáreas Protegidas</span>
+        <div class="data-grid">
+            <div><div class="data-label">MAESTRO</div><div class="data-val">Don Pedro</div></div>
+            <div><div class="data-label">COMUNIDAD</div><div class="data-val">Lechigalla</div></div>
+            <div><div class="data-label">ESPECIE</div><div class="data-val">A. Potatorum</div></div>
+            <div><div class="data-label">BOTELLAS</div><div class="data-val">245 / 300</div></div>
+        </div>
+        
+        <div class="trust-block">
+            <div class="trust-verified"><i class="fas fa-check-circle"></i> ORIGEN VERIFICADO</div>
+            <div class="trust-hash">0x7f8a...3a9c (Blockchain ID)</div>
         </div>
     </div>
 
-    <div class="smart-dock" id="dock">
-        <div class="dock-handle" onclick="toggleDock()">
-            <div class="bar"></div>
+    <div class="top-hud">
+        <div class="hud-content title">
+            <h1>OAXACA BIOCULTURAL</h1>
+            <span>Sistema de Trazabilidad Viva</span>
         </div>
-
-        <div class="dock-header">
-            <div class="dock-nav">
-                <i class="fas fa-chevron-left nav-btn" onclick="changeLocation(-1)"></i>
-                <div class="loc-title" onclick="toggleDock()">
-                    <span class="loc-cat" id="d-cat">CATEGORÍA</span>
-                    <h2 class="loc-name" id="d-name">Nombre</h2>
-                </div>
-                <i class="fas fa-chevron-right nav-btn" onclick="changeLocation(1)"></i>
-            </div>
-            <div style="display:flex; align-items:center; gap:10px; padding-bottom:15px; border-bottom:1px solid rgba(255,255,255,0.1); cursor:pointer;" onclick="playAudio()">
-                <div style="width:30px; height:30px; border-radius:50%; background:var(--accent); display:flex; justify-content:center; align-items:center; color:black;">
-                    <i class="fas fa-play" id="play-icon"></i>
-                </div>
-                <div style="font-size:0.8rem; color:#ccc;">Historia Oral: <strong style="color:white;" id="d-audio">Título Audio</strong></div>
-            </div>
+        <div class="hud-content kpi-box">
+            <span class="kpi-val" id="total-assets">0</span>
+            <span class="kpi-lbl">PUNTOS ACTIVOS</span>
         </div>
+    </div>
 
-        <div class="dock-content">
+    <div class="scan-lines"></div>
+    <div id="map"></div>
+
+    <div class="controls-dock">
+        <div class="ctrl-btn active" onclick="toggleLayer('maestros', this)" style="color:var(--agave-gold)" title="Maestros">
+            <i class="fas fa-user-tag"></i><div class="badge" style="background:var(--agave-gold)">20</div>
+        </div>
+        <div class="ctrl-btn active" onclick="toggleLayer('voices', this)" style="color:var(--earth-orange)" title="Voces">
+            <i class="fas fa-comments"></i><div class="badge" style="background:var(--earth-orange); color:white">50</div>
+        </div>
+        <div class="ctrl-btn active" onclick="toggleLayer('bio', this)" style="color:var(--eco-green)" title="Biodiversidad">
+            <i class="fas fa-leaf"></i><div class="badge" style="background:var(--eco-green); color:white">50</div>
+        </div>
+        <div class="ctrl-btn" onclick="toggleLayer('restore', this)" style="color:var(--trust-cyan)" title="Restauración">
+            <i class="fas fa-hand-holding-water"></i><div class="badge" style="background:var(--trust-cyan)">15</div>
+        </div>
+        
+        <div style="height: 15px;"></div> 
+
+        <div class="ctrl-btn trace-btn" onclick="toggleTraceability(this)" title="Ver Ruta del Mezcal">
+            <i class="fas fa-route"></i>
+        </div>
+    </div>
+
+    <div class="panel" id="panel">
+        <div class="panel-header" onclick="togglePanel()">
+            <span style="font-weight:700; color:var(--earth-orange); letter-spacing:2px; font-family:'Cinzel';">CENTRO DE DATOS</span>
+            <i class="fas fa-chevron-up" id="panel-chevron"></i>
+        </div>
+        <div class="panel-tabs">
+            <div class="tab active" onclick="switchTab('feed')">FEED</div>
+            <div class="tab" onclick="switchTab('trace')">TRAZABILIDAD</div>
+            <div class="tab" onclick="switchTab('sustain')">SOSTENIBILIDAD</div>
+            <div class="tab" onclick="switchTab('stats')">ESTADÍSTICAS</div>
+        </div>
+        <div class="viewport">
             
-            <p style="line-height:1.6; color:#ccc; margin-top:0;" id="d-desc">Descripción...</p>
+            <div id="view-feed" class="view active">
+                <div id="feed-container"></div>
+            </div>
 
-            <div class="data-card">
-                <div class="card-title"><span>Signos Vitales</span> <i class="fas fa-heartbeat"></i></div>
-                <div class="pill-grid">
-                    <div class="pill-item"><div class="pill-icon"><i class="fas fa-tint"></i></div> <span id="val-water">Infiltración Alta</span></div>
-                    <div class="pill-item"><div class="pill-icon"><i class="fas fa-leaf"></i></div> <span id="val-veg">Cobertura 85%</span></div>
-                    <div class="pill-item"><div class="pill-icon"><i class="fas fa-paw"></i></div> <span id="val-fauna">Fauna Activa</span></div>
-                    <div class="pill-item"><div class="pill-icon"><i class="fas fa-bug"></i></div> <span id="val-soil">Suelo Vivo</span></div>
+            <div id="view-trace" class="view">
+                <h3 style="color:var(--agave-gold); margin-top:0;">Línea de Vida: Lote OAX-2025-A</h3>
+                <div class="timeline-wrapper">
+                    </div>
+            </div>
+
+            <div id="view-sustain" class="view">
+                <h3 style="color:var(--eco-green); margin-top:0;">Impacto Biocultural</h3>
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-icon"><i class="fas fa-tint"></i></div>
+                        <div class="metric-val">Neutral</div>
+                        <div class="metric-lbl">Huella Hídrica</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-icon"><i class="fas fa-seedling"></i></div>
+                        <div class="metric-val">3:1</div>
+                        <div class="metric-lbl">Siembra vs Cosecha</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-icon"><i class="fas fa-venus"></i></div>
+                        <div class="metric-val">40%</div>
+                        <div class="metric-lbl">Liderazgo Femenino</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-icon"><i class="fas fa-fire-alt"></i></div>
+                        <div class="metric-val">100%</div>
+                        <div class="metric-lbl">Leña Certificada</div>
+                    </div>
+                </div>
+                <div style="background:rgba(255,255,255,0.05); padding:15px; border-radius:8px; border-left:3px solid var(--agave-gold);">
+                    <i class="fas fa-quote-left" style="color:var(--agave-gold); margin-right:5px;"></i>
+                    <span style="font-style:italic; font-size:0.9rem; color:#ccc;">
+                        "Al beber este mezcal, apoyas la protección de 5 hectáreas de bosque tropical seco y el empleo de 12 familias locales."
+                    </span>
                 </div>
             </div>
 
-            <div class="card-title" style="margin-top:20px;"><span>IMPACTO VISUAL</span> <i class="fas fa-adjust"></i></div>
-            <div class="comparison-container">
-                <img src="https://images.unsplash.com/photo-1598512752271-33f913a5af13?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80" class="img-comp" alt="Policultivo"> <div class="img-overlay" id="comp-overlay">
-                    <img src="https://images.unsplash.com/photo-1508108712903-49b7efd9c36d?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80" class="img-comp" style="width:200%; max-width:none;" alt="Monocultivo"> <div class="comp-label left">MONOCULTIVO</div>
-                </div>
-                <div class="comp-label right">POLICULTIVO (ACTUAL)</div>
-                <input type="range" min="0" max="100" value="50" class="slider-range" oninput="updateComparison(this.value)">
+            <div id="view-stats" class="view">
+                <canvas id="mainChart" height="100"></canvas>
             </div>
 
-            <button class="btn-action btn-primary" onclick="openRadar()">
-                <i class="fas fa-satellite-dish"></i> INICIAR ESCANEO BIO
-            </button>
-            <button class="btn-action btn-secondary" onclick="alert('Descargando certificado blockchain...')">
-                <i class="fas fa-file-contract"></i> VER CERTIFICADO
-            </button>
-        </div>
-    </div>
-
-    <div class="modal" id="radar-modal">
-        <div class="modal-content">
-            <h2 style="font-family:'Cinzel'; color:var(--primary);">MONITOREO SATELITAL</h2>
-            <div class="radar-box">
-                <div class="radar-scan"></div>
-                <i class="fas fa-paw" style="position:absolute; top:30%; left:60%; color:var(--text-main); font-size:1.2rem; opacity:0;" id="radar-blip"></i>
-            </div>
-            <div style="margin-top:20px; text-align:center;">
-                <p style="color:var(--secondary); font-size:1.2rem; font-weight:bold;" id="radar-status">ESCANANDO...</p>
-                <div style="font-size:0.8rem; color:#888;">Frecuencia: 142.5 Mhz | Cobertura: 100%</div>
-            </div>
-            <button class="btn-action btn-secondary" style="margin-top:30px; width:auto; padding:10px 40px;" onclick="closeRadar()">CERRAR</button>
         </div>
     </div>
 
     <script>
-        // --- DATASET: TIERRA DE AGAVES ---
-        const locations = [
-            {
-                name: "San Juan Lechigalla",
-                cat: "AGROFORESTERÍA",
-                coords: [16.635, -96.155],
-                desc: "Aquí el Agave Espadín no crece solo. Convive con maíz, frijol y árboles de Huizache que fijan nitrógeno al suelo, evitando la erosión típica del monocultivo.",
-                audio: "La Milpa Diversa",
-                stats: { water: "Retención Media", veg: "Cobertura 65%", fauna: "Polinizadores", soil: "Nutrientes Altos" }
-            },
-            {
-                name: "Sta. María Zoquitlán",
-                cat: "ZONA NÚCLEO",
-                coords: [16.565, -96.355],
-                desc: "Santuario del Jaguar. 300 hectáreas de selva baja caducifolia estrictamente protegidas. Prohibida la extracción, permitida la admiración.",
-                audio: "El Rugido del Monte",
-                stats: { water: "Manantiales", veg: "Cobertura 98%", fauna: "Jaguar / Puma", soil: "Intacto" }
-            },
-            {
-                name: "San Bartolo Yautepec",
-                cat: "PRODUCCIÓN LIMPIA",
-                coords: [16.450, -96.000],
-                desc: "El vinazas (residuos líquidos) no van al río. Se tratan en biodigestores para generar gas que alimenta el siguiente horno de cocción.",
-                audio: "Río Cristalino",
-                stats: { water: "Tratamiento 100%", veg: "Ribereña", fauna: "Iguana Negra", soil: "Compostaje" }
-            }
+        // --- 1. DATOS MAESTROS ---
+
+        const hubs = [
+            { name: "Zoquitlán", lat: 16.565, lng: -96.355 },
+            { name: "Chontecomatlán", lat: 16.350, lng: -95.880 },
+            { name: "Lechigalla", lat: 16.635, lng: -96.155 },
+            { name: "Chiguivana", lat: 16.505, lng: -96.055 },
+            { name: "Teipan", lat: 16.282, lng: -95.955 },
+            { name: "Yautepec", lat: 16.450, lng: -96.000 },
+            { name: "Quialana", lat: 16.905, lng: -96.505 },
+            { name: "El Tule", lat: 17.045, lng: -96.630 },
+            { name: "Amatlán", lat: 16.325, lng: -96.485 }
         ];
 
-        let currentIdx = 0;
-        let isWetSeason = true;
-        let isDockOpen = false;
+        // Trazabilidad Realista
+        const traceTimeline = [
+            { date: "2012 - ORIGEN", title: "Rescate de Hijuelos", desc: "Recolección de hijuelos silvestres en el Cerro del Tigre (Zoquitlán).", coords: hubs[0] },
+            { date: "2013-2023 - MANEJO", title: "Maduración Agroforestal", desc: "10 años creciendo bajo la sombra de guajes para evitar la erosión.", coords: hubs[2] },
+            { date: "FEB 2024 - COSECHA", title: "Jima Selectiva (Capón)", desc: "Corte manual solo de plantas maduras, dejando 20% para semillas.", coords: hubs[2] },
+            { date: "MAR 2024 - PROCESO", title: "Cocción & Destilación", desc: "Horno cónico de tierra y doble destilación en olla de barro.", coords: hubs[5] },
+            { date: "2025 - DESTINO", title: "Envasado & Certificación", desc: "Lote verificado, sellado y listo para distribución.", coords: hubs[7] }
+        ];
 
-        // --- MAPA LEAFLET ---
-        const map = L.map('map', { 
-            zoomControl: false, 
-            attributionControl: false,
-            zoomSnap: 0.5 
-        }).setView([16.6, -96.2], 10);
+        // Acciones de Restauración
+        const restorationPoints = [
+            { type: "Polinizadores", icon: "fa-bug", desc: "Refugio de Murciélagos" },
+            { type: "Agua", icon: "fa-water", desc: "Olla de Captación Pluvial" },
+            { type: "Suelo", icon: "fa-seedling", desc: "Barreras Vivas (Vivero)" }
+        ];
 
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            maxZoom: 18
-        }).addTo(map);
+        // Banco de Narrativa
+        const quotes = [
+            "El maguey es sagrado, no se vende, se comparte.", "Cuidamos el agua para que el agua nos cuide.", 
+            "Sin monte sano, no hay mezcal bueno.", "Herencia de mi abuelo, futuro de mis nietos.", 
+            "Respeto a la tierra ante todo.", "Cosecha responsable, vida perdurable.",
+            "Manos de mujer, corazón de maguey.", "Sabor a humo, tierra y tiempo.", 
+            "Protegemos al murciélago porque él nos siembra.", "Reforestando el futuro hoy.", 
+            "Tradición viva en cada gota.", "Mezcal es cultura, no solo alcohol."
+        ];
+        
+        const bioTypes = ["Jaguar", "Venado", "Agave Silvestre", "Copal", "Manantial", "Colibrí"];
+        const maestroNames = ["Don Pedro", "Maestro Juan", "Tío Beto", "Maestra Ana", "Doña Petra", "Don Luis"];
 
-        // Marcadores personalizados
-        locations.forEach((loc, idx) => {
-            const iconHtml = `<div style="width:16px; height:16px; background:var(--accent); border-radius:50%; box-shadow:0 0 0 4px rgba(255, 215, 0, 0.3); border:2px solid #000;"></div>`;
-            const icon = L.divIcon({ className: 'custom-pin', html: iconHtml });
-            
-            L.marker(loc.coords, {icon: icon}).addTo(map).on('click', () => {
-                updateContent(idx);
-                openDock();
-            });
-        });
+        // --- 2. GENERACIÓN PROCEDIMENTAL DE DATOS ---
+        
+        let mapData = { voices: [], bio: [], maestros: [], restore: [] };
 
-        // --- FUNCIONES DE UI ---
-
-        // 1. Init Sequence (Fake Scanner)
-        window.onload = () => {
-            const tl = gsap.timeline();
-            
-            // Texto dinámico
-            setTimeout(() => { document.getElementById('scan-text').innerHTML = "<p>BOTELLA: TOBALÁ<br>LOTE: BTS-042</p>"; document.getElementById('scan-text').style.opacity = 1; }, 1000);
-            setTimeout(() => { document.getElementById('scan-text').innerHTML = "<p style='color:white'>ORIGEN CONFIRMADO<br>OAXACA, MÉXICO</p>"; }, 2500);
-
-            // Transición a Mapa
-            tl.to("#ar-overlay", { duration: 0.5, delay: 3.5, opacity: 0, display: "none" })
-              .from("#map-container", { duration: 1.5, scale: 1.2, ease: "power2.out" }, "-=0.2")
-              .from(".smart-dock", { duration: 0.8, y: 100, opacity: 0 }, "-=1")
-              .add(() => animateCounter());
-            
-            updateContent(0);
-        };
-
-        // 2. Control del Dock
-        function toggleDock() {
-            const dock = document.getElementById('dock');
-            isDockOpen = !isDockOpen;
-            if(isDockOpen) dock.classList.add('expanded');
-            else dock.classList.remove('expanded');
-        }
-        function openDock() {
-            if(!isDockOpen) toggleDock();
-        }
-
-        // 3. Actualizar Contenido
-        function updateContent(idx) {
-            currentIdx = idx;
-            const data = locations[idx];
-            
-            // Animación de textos
-            gsap.fromTo("#d-name", {opacity:0, y:10}, {opacity:1, y:0, duration:0.4});
-            
-            document.getElementById('d-cat').innerText = data.cat;
-            document.getElementById('d-name').innerText = data.name;
-            document.getElementById('d-desc').innerText = data.desc;
-            document.getElementById('d-audio').innerText = data.audio;
-            
-            // Stats
-            document.getElementById('val-water').innerText = data.stats.water;
-            document.getElementById('val-veg').innerText = data.stats.veg;
-            document.getElementById('val-fauna').innerText = data.stats.fauna;
-            document.getElementById('val-soil').innerText = data.stats.soil;
-
-            // Vuelo del mapa
-            map.flyTo(data.coords, 14, { duration: 2, ease: "power2.inOut" });
-        }
-
-        function changeLocation(dir) {
-            let next = currentIdx + dir;
-            if(next >= locations.length) next = 0;
-            if(next < 0) next = locations.length - 1;
-            updateContent(next);
-        }
-
-        // 4. Temporada (Filtros CSS)
-        function toggleSeason() {
-            isWetSeason = !isWetSeason;
-            const btn = document.getElementById('season-btn');
-            const icon = document.getElementById('season-icon');
-            const txt = document.getElementById('season-txt');
-            
-            if(isWetSeason) {
-                document.body.className = "season-wet";
-                icon.className = "fas fa-cloud-showers-heavy";
-                txt.innerText = "LLUVIAS";
-                btn.classList.remove("active");
-            } else {
-                document.body.className = "season-dry";
-                icon.className = "fas fa-sun";
-                txt.innerText = "SECAS";
-                btn.classList.add("active");
-                // Haptic feedback simulado
-                if(navigator.vibrate) navigator.vibrate(50);
+        function generateData() {
+            // 50 Voces (Naranja)
+            for(let i=0; i<50; i++) {
+                const hub = hubs[Math.floor(Math.random() * hubs.length)];
+                mapData.voices.push({ lat: hub.lat + (Math.random()-0.5)*0.09, lng: hub.lng + (Math.random()-0.5)*0.09, txt: quotes[Math.floor(Math.random()*quotes.length)], loc: hub.name });
+            }
+            // 50 Fauna/Flora (Verde)
+            for(let i=0; i<50; i++) {
+                const hub = hubs[Math.floor(Math.random() * hubs.length)];
+                mapData.bio.push({ lat: hub.lat + (Math.random()-0.5)*0.12, lng: hub.lng + (Math.random()-0.5)*0.12, type: bioTypes[Math.floor(Math.random()*bioTypes.length)], loc: hub.name });
+            }
+            // 20 Maestros (Oro - Más cerca de los pueblos)
+            for(let i=0; i<20; i++) {
+                const hub = hubs[Math.floor(Math.random() * hubs.length)];
+                mapData.maestros.push({ lat: hub.lat + (Math.random()-0.5)*0.04, lng: hub.lng + (Math.random()-0.5)*0.04, name: maestroNames[Math.floor(Math.random()*maestroNames.length)], loc: hub.name });
+            }
+            // 15 Puntos Restauración (Cian)
+            for(let i=0; i<15; i++) {
+                const hub = hubs[Math.floor(Math.random() * hubs.length)];
+                const type = restorationPoints[Math.floor(Math.random()*restorationPoints.length)];
+                mapData.restore.push({ lat: hub.lat + (Math.random()-0.5)*0.07, lng: hub.lng + (Math.random()-0.5)*0.07, ...type });
             }
         }
 
-        // 5. Comparador Slider
-        function updateComparison(val) {
-            const overlay = document.getElementById('comp-overlay');
-            overlay.style.width = val + "%";
-        }
+        // --- 3. INICIALIZACIÓN MAPA ---
+        
+        let map;
+        let layers = {
+            hubs: L.layerGroup(),
+            voices: L.layerGroup(),
+            bio: L.layerGroup(),
+            maestros: L.layerGroup(),
+            restore: L.layerGroup(),
+            trace: L.layerGroup()
+        };
 
-        // 6. Radar Logica
-        function openRadar() {
-            const modal = document.getElementById('radar-modal');
-            modal.classList.add('active');
+        window.onload = () => {
+            generateData();
+            initMap();
+            populateLayers();
+            renderTimeline();
+            updateTotalCounter();
+            renderFeed();
+            initChart();
+        };
+
+        function initMap() {
+            map = L.map('map', { zoomControl: false, attributionControl: false }).setView([16.65, -96.2], 9);
             
-            // Simular hallazgo
-            setTimeout(() => {
-                const blip = document.getElementById('radar-blip');
-                const status = document.getElementById('radar-status');
-                gsap.to(blip, { opacity: 1, scale: 1.5, duration: 0.2, yoyo: true, repeat: 3 });
-                status.innerText = "¡FAUNA DETECTADA!";
-                status.style.color = "var(--accent)";
-                if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
-            }, 2000);
-        }
-        function closeRadar() {
-            document.getElementById('radar-modal').classList.remove('active');
-            document.getElementById('radar-status').innerText = "ESCANANDO...";
-            document.getElementById('radar-status').style.color = "var(--secondary)";
-            document.getElementById('radar-blip').style.opacity = 0;
+            // Capa Satelital Oscura
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                maxZoom: 18, opacity: 0.65
+            }).addTo(map);
+
+            // Agregar capas iniciales
+            layers.hubs.addTo(map);
+            layers.maestros.addTo(map);
+            layers.voices.addTo(map);
+            layers.bio.addTo(map);
         }
 
-        // 7. Animación de Números
-        function animateCounter() {
-            const counters = document.querySelectorAll('.counter');
-            counters.forEach(counter => {
-                const target = +counter.getAttribute('data-target');
-                const updateCount = () => {
-                    const count = +counter.innerText;
-                    const inc = target / 100;
-                    if (count < target) {
-                        counter.innerText = Math.ceil(count + inc);
-                        setTimeout(updateCount, 20);
-                    } else {
-                        counter.innerText = target.toLocaleString();
-                    }
-                };
-                updateCount();
+        function populateLayers() {
+            // Pueblos
+            hubs.forEach(h => {
+                const icon = L.divIcon({ className: 'custom-pin', html: `<div class="pin-body p-town"></div>`, iconSize:[20,20] });
+                L.marker([h.lat, h.lng], {icon}).bindPopup(`<b>${h.name}</b>`).addTo(layers.hubs);
+            });
+            // Voces
+            mapData.voices.forEach(v => {
+                const icon = L.divIcon({ className: 'custom-pin', html: `<div class="pin-body p-voice"><i class="fas fa-quote-right"></i></div>`, iconSize:[16,16] });
+                L.marker([v.lat, v.lng], {icon}).bindPopup(`"${v.txt}"<br><small>${v.loc}</small>`).addTo(layers.voices);
+            });
+            // Bio
+            mapData.bio.forEach(b => {
+                const icon = L.divIcon({ className: 'custom-pin', html: `<div class="pin-body p-bio"><i class="fas fa-leaf"></i></div>`, iconSize:[16,16] });
+                L.marker([b.lat, b.lng], {icon}).bindPopup(`<b>${b.type}</b><br><small>Avistamiento en ${b.loc}</small>`).addTo(layers.bio);
+            });
+            // Maestros
+            mapData.maestros.forEach(m => {
+                const icon = L.divIcon({ className: 'custom-pin', html: `<div class="pin-body p-maestro"><i class="fas fa-user"></i></div>`, iconSize:[24,24] });
+                L.marker([m.lat, m.lng], {icon}).bindPopup(`<b>${m.name}</b><br><small>Maestro Mezcalero</small>`).addTo(layers.maestros);
+            });
+            // Restauración (Oculta al inicio)
+            mapData.restore.forEach(r => {
+                const icon = L.divIcon({ className: 'custom-pin', html: `<div class="pin-body p-restore"><i class="fas ${r.icon}"></i></div>`, iconSize:[20,20] });
+                L.marker([r.lat, r.lng], {icon}).bindPopup(`<b>${r.desc}</b><br><small>Acción de Restauración</small>`).addTo(layers.restore);
             });
         }
-        
-        // Audio Toggle simple
-        let isPlaying = false;
-        function playAudio() {
-            isPlaying = !isPlaying;
-            const icon = document.getElementById('play-icon');
-            icon.className = isPlaying ? "fas fa-pause" : "fas fa-play";
+
+        // --- 4. LÓGICA DE INTERFAZ ---
+
+        function activateBottleView() {
+            document.getElementById('bottleIdentity').style.display = 'block';
+            switchTab('trace');
+            // Auto-activar traza si no está activa
+            if(!isTraceActive) toggleTraceability(document.querySelector('.trace-btn'));
+            togglePanel(); // Asegurar que el panel esté abierto
+        }
+
+        function closeBottleView() {
+            document.getElementById('bottleIdentity').style.display = 'none';
+        }
+
+        function renderTimeline() {
+            const container = document.querySelector('.timeline-wrapper');
+            traceTimeline.forEach(step => {
+                container.innerHTML += `
+                    <div class="tl-item" onclick="flyToStep(${step.coords.lat}, ${step.coords.lng})">
+                        <div class="tl-dot"></div>
+                        <div class="tl-date">${step.date}</div>
+                        <div class="tl-title">${step.title}</div>
+                        <div class="tl-desc">${step.desc}</div>
+                    </div>
+                `;
+            });
+        }
+
+        function flyToStep(lat, lng) {
+            map.flyTo([lat, lng], 13, { duration: 2, easeLinearity: 0.5 });
+        }
+
+        let isTraceActive = false;
+        function toggleTraceability(btn) {
+            isTraceActive = !isTraceActive;
+            if (isTraceActive) {
+                btn.classList.add('active');
+                // Limpiar ruido visual
+                map.removeLayer(layers.voices);
+                map.removeLayer(layers.bio);
+                // Dibujar Línea
+                const latlngs = traceTimeline.map(t => [t.coords.lat, t.coords.lng]);
+                const polyline = L.polyline(latlngs, { className: 'trace-line' }).addTo(layers.trace);
+                layers.trace.addTo(map);
+                map.fitBounds(polyline.getBounds(), { padding: [80, 80] });
+            } else {
+                btn.classList.remove('active');
+                // Restaurar capas
+                map.addLayer(layers.voices);
+                map.addLayer(layers.bio);
+                layers.trace.clearLayers();
+                map.setView([16.65, -96.2], 9);
+            }
+        }
+
+        function toggleLayer(name, btn) {
+            if(isTraceActive && (name === 'voices' || name === 'bio')) return; // Bloquear si hay trazabilidad
+            if (map.hasLayer(layers[name])) {
+                map.removeLayer(layers[name]);
+                btn.classList.remove('active');
+            } else {
+                map.addLayer(layers[name]);
+                btn.classList.add('active');
+            }
+        }
+
+        function togglePanel() {
+            const p = document.getElementById('panel');
+            const c = document.getElementById('panel-chevron');
+            p.classList.toggle('closed');
+            c.className = p.classList.contains('closed') ? "fas fa-chevron-up" : "fas fa-chevron-down";
+        }
+
+        function switchTab(id) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            document.getElementById('view-'+id).classList.add('active');
+        }
+
+        function updateTotalCounter() {
+            const total = 50 + 50 + 20 + 15;
+            let current = 0;
+            const el = document.getElementById('total-assets');
+            const i = setInterval(() => {
+                current += 3;
+                el.innerText = current;
+                if(current >= total) { clearInterval(i); el.innerText = total; }
+            }, 15);
+        }
+
+        function renderFeed() {
+            const c = document.getElementById('feed-container');
+            const feedData = mapData.voices.slice(0,6).map(v => ({ icon:'fa-comment', txt:`"${v.txt}"`, h:v.loc, col:'var(--earth-orange)' }))
+                .concat(mapData.maestros.slice(0,4).map(m => ({ icon:'fa-user-tag', txt:`Producción verificada de ${m.name}`, h:'Nuevo Lote', col:'var(--agave-gold)' })));
+            
+            // Mezclar aleatoriamente
+            feedData.sort(() => Math.random() - 0.5);
+
+            feedData.forEach(f => {
+                c.innerHTML += `
+                    <div class="feed-item">
+                        <i class="fas ${f.icon} feed-icon" style="color:${f.col}"></i>
+                        <div class="feed-content"><span class="feed-highlight" style="color:${f.col}">${f.h}</span><br>${f.txt}</div>
+                    </div>
+                `;
+            });
+        }
+
+        function initChart() {
+            new Chart(document.getElementById('mainChart'), {
+                type: 'bar',
+                data: {
+                    labels: ['Voces', 'Bio', 'Maestros', 'Restauración'],
+                    datasets: [{
+                        label: 'Puntos Activos',
+                        data: [50, 50, 20, 15],
+                        backgroundColor: ['#e67e22', '#2ecc71', '#f1c40f', '#00bcd4'],
+                        borderRadius: 4
+                    }]
+                },
+                options: { 
+                    responsive: true, maintainAspectRatio: false, 
+                    plugins: { legend: { display: false } },
+                    scales: { x: { ticks: { color: '#888' }, grid:{display:false} }, y: { display:false } }
+                }
+            });
         }
 
     </script>
